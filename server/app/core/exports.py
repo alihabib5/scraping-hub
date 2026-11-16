@@ -100,6 +100,9 @@ def excel_name(run: dict[str, Any]) -> str:
 
     scraper = run.get("scraper") or "results"
     search = (run.get("search") or "").strip()
+    # Portals with no date filter of their own carry the run's day instead, so
+    # each day's sheet gets its own name (SAM / SEPTA carry their filter dates).
+    day = f", {run['started_at'][:10]}" if run.get("started_at") else ""
     # BidNet names its sheet after the niche, matching the copy inside the
     # session ZIP — a bare-sheet fallback download shouldn't arrive under a
     # different name than the one in the bundle.
@@ -113,13 +116,13 @@ def excel_name(run: dict[str, Any]) -> str:
         "septa": f"Septa_({search or 'all open quotes'})",
         "wisconsin": f"Wisconsin_({search or 'all current solicitations'})",
         "sam": f"SAM_({search or 'all active solicitations'})",
-        "unison": f"Unison_({(run.get('filter_by') or 'all requests').strip()})",
-        "ridemetro": f"RideMetro_Bids ({run.get('label') or run['run_id']})",
+        "unison": f"Unison_({(run.get('filter_by') or 'all requests').strip()}{day})",
+        "ridemetro": f"EUNA_BONFIRE_Bids ({run.get('label') or run['run_id']})",
         "northdakota": f"NorthDakota_({search or 'all public solicitations'})",
         "bidnet": f"Bidnetdirect_({search or 'all solicitations'})",
         "myflorida_sweep": f"MyFlorida_Sweep_({search or 'all statuses'})",
         "emma": f"EMMA_({search or 'all public solicitations'})",
-        "philadelphia": f"Philadelphia_({search or 'all open bids'})",
+        "philadelphia": f"Philadelphia_({search or 'all open bids'}{day})",
     }.get(scraper, f"{scraper}_{run['run_id']}")
     return sanitize_filename(label, max_length=150) + ".xlsx"
 

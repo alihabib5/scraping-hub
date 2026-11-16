@@ -144,7 +144,7 @@ class RideMetroScraper(BaseScraper):
         only the credentials typed into it differ."""
         account = self.account or accounts.get(None)
         self.set_step("logging_in")
-        self.navigate(settings.ridemetro_login_url)
+        self.navigate(settings.euna_bonfire_login_url)
         # Bonfire/Euna uses an identifier-first flow: the first screen shows only
         # the email field and a "Continue" button. The password field is not in
         # the DOM until the email is submitted, so we fill and submit email first,
@@ -194,7 +194,7 @@ class RideMetroScraper(BaseScraper):
         same either way.
         """
         self.set_step("opening_supplier_network")
-        self.navigate(settings.ridemetro_opportunities_url)
+        self.navigate(settings.euna_bonfire_opportunities_url)
         try:
             button = self.wait(30).until(
                 EC.element_to_be_clickable(network.SEL["supplier_network_button"])
@@ -202,15 +202,15 @@ class RideMetroScraper(BaseScraper):
         except TimeoutException:
             logger.warning(
                 "[run %s] no 'My Euna Supplier Network' button on the portal — "
-                "going straight to %s", self.run_id, settings.ridemetro_supplier_network_url,
+                "going straight to %s", self.run_id, settings.euna_bonfire_supplier_network_url,
             )
-            self.navigate(settings.ridemetro_supplier_network_url)
+            self.navigate(settings.euna_bonfire_supplier_network_url)
         else:
             handle = self._click_into_new_tab(button)
             if handle:
                 self.driver.switch_to.window(handle)
             else:
-                self.navigate(settings.ridemetro_supplier_network_url)
+                self.navigate(settings.euna_bonfire_supplier_network_url)
 
         self.wait(60).until(lambda d: "vendor.bonfirehub.com" in d.current_url)
         self._network_handle = self.driver.current_window_handle
@@ -225,7 +225,7 @@ class RideMetroScraper(BaseScraper):
             tab.click()
         except (TimeoutException, WebDriverException):
             logger.warning("[run %s] My Network tab not clickable — navigating to it", self.run_id)
-            self.navigate(settings.ridemetro_agencies_url)
+            self.navigate(settings.euna_bonfire_agencies_url)
 
         # The roster renders client-side after the tab switch. Wait for an
         # agency card itself: a "Go to …" control can be on the page before the
@@ -914,7 +914,7 @@ class RideMetroScraper(BaseScraper):
             self.driver.switch_to.window(self._network_handle)
         except WebDriverException:
             logger.warning("[run %s] lost the My Network tab — reopening it", self.run_id)
-            self.navigate(settings.ridemetro_agencies_url)
+            self.navigate(settings.euna_bonfire_agencies_url)
             self._network_handle = self.driver.current_window_handle
             self.wait(60).until(EC.presence_of_element_located(network.SEL["go_to_agency"]))
             return
@@ -923,7 +923,7 @@ class RideMetroScraper(BaseScraper):
         # roster; there is nothing to wait for, so go straight back rather than
         # spending the timeout proving the list is gone.
         if self._left_the_network():
-            self.navigate(settings.ridemetro_agencies_url)
+            self.navigate(settings.euna_bonfire_agencies_url)
             self.wait(60).until(EC.presence_of_element_located(network.SEL["go_to_agency"]))
             return
 
@@ -933,7 +933,7 @@ class RideMetroScraper(BaseScraper):
         try:
             self.wait(20).until(EC.presence_of_element_located(network.SEL["go_to_agency"]))
         except TimeoutException:
-            self.navigate(settings.ridemetro_agencies_url)
+            self.navigate(settings.euna_bonfire_agencies_url)
             self.wait(60).until(EC.presence_of_element_located(network.SEL["go_to_agency"]))
 
     # -- reporting ----------------------------------------------------------
@@ -983,7 +983,7 @@ class RideMetroScraper(BaseScraper):
             self._records,
             save_bids=export.save_bids,
             write_sheet=export.generate_excel_from_records,
-            sheet_name=f"RideMetro_Bids ({label}) [{self.run_id}]",
+            sheet_name=f"EUNA_BONFIRE_Bids ({label}) [{self.run_id}]",
         )
 
     def run(self) -> None:
@@ -1041,7 +1041,7 @@ class RideMetroScraper(BaseScraper):
                 # the only copy the download/email can serve.
                 try:
                     label = (run_manager.get_run(self.run_id) or {}).get("label") or timestamp()
-                    self.excel_path = self.run_dir / f"RideMetro_Bids ({label}) [{self.run_id}].xlsx"
+                    self.excel_path = self.run_dir / f"EUNA_BONFIRE_Bids ({label}) [{self.run_id}].xlsx"
                     export.generate_excel_from_records(
                         self._records, self.excel_path,
                         [a.as_record() for a in self._agencies],

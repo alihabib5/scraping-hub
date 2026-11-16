@@ -80,12 +80,12 @@ a ZIP around a single sheet is a folder to unpack for nothing.
   is a run parameter rather than both being scraped. Rows naming a blacklisted
   term (`app/scrapers/septa/exclusions.py` — bus/engine manufacturers and
   gaskets) are skipped outright.
-- **RideMetro** (Bonfire / Euna Supplier Network) — logs in, hops to **My Euna
+- **EUNA BONFIRE** (Bonfire / Euna Supplier Network; internal key `ridemetro`) — logs in, hops to **My Euna
   Supplier Network → My Network**, and sweeps every agency whose registration
   status is **Complete** (Incomplete ones have no portal behind their button),
   capturing each one's Open Public Opportunities. The export is a single
   agency-grouped Excel: a full-width banner per agency, its headers, its rows, a
-  blank row between blocks. **Two accounts** — Hoope Lab and Fedpints — are
+  blank row between blocks. **Two accounts** — Hoope Lab and FedPoint — are
   selectable per run; each is a separate login into a separate supplier network.
 - **Wisconsin** (eSupplier / PeopleSoft) — public bidder portal, **no login**.
   Searches Current Solicitations by keyword / agency / NIGP code (all optional)
@@ -205,7 +205,7 @@ A bid whose close date cannot be read is **kept** and counted — a drop is neve
 silent. Each run reports how many it skipped and how many it kept unverified.
 
 It drops bids on BidNet, EMMA, MyFlorida, North Dakota, SAM, SEPTA, Unison and
-Wisconsin. RideMetro only **counts** the bids closing within 7 days, without
+Wisconsin. EUNA BONFIRE only **counts** the bids closing within 7 days, without
 dropping them; Philadelphia does not apply it.
 
 ## Running jobs
@@ -252,7 +252,7 @@ cannot disagree about what a run produced:
 - **A ZIP** — the cumulative Excel plus every downloaded document in its
   original folders, for the document-downloading portals.
 - **A bare `.xlsx`** — for portals whose only output is the spreadsheet
-  (`EXCEL_ONLY_PORTALS`: SAM, SEPTA, RideMetro, Unison, EMMA, Philadelphia), and for
+  (`EXCEL_ONLY_PORTALS`: SAM, SEPTA, EUNA BONFIRE, Unison, EMMA, Philadelphia), and for
   individual runs that say so themselves (BidNet's member-agency sweep).
 
 Either way the artifact is:
@@ -276,7 +276,7 @@ screen), and control characters Excel rejects stripped from every cell.
 A plain export is two calls — `new_workbook(title)` and
 `write_table(sheet, headers, rows)`. Portals with more to say compose on top:
 SAM tints REJECT/MANUAL_REVIEW rows, the MyFlorida sweep tints cross-listed
-ones, and RideMetro repeats the standard header under each agency banner via
+ones, and EUNA BONFIRE repeats the standard header under each agency banner via
 `style_header_row`. To restyle every report in the hub, change the constants at
 the top of that one module.
 
@@ -340,7 +340,7 @@ Portal-specific extras:
 - **BidNet:** `GET /bidnet/niches`, `GET /bidnet/filters`,
   `POST /bidnet/filters/refresh`, `POST /bidnet/scrape/batch` (all niches),
   `POST /bidnet/scrape/member-agencies`, `GET /bidnet/export`
-- **RideMetro:** `GET /ridemetro/accounts` (which accounts are configured)
+- **EUNA BONFIRE:** `GET /ridemetro/accounts` (which accounts are configured)
 - **SEPTA:** `GET /septa/open-bids` (the Bid module's stored rows)
 - **Philadelphia:** `GET /philadelphia/search/fields`
 - **EMMA:** `POST /emma/scrape` takes `keyword`, `status`, `category`,
@@ -388,7 +388,7 @@ Credentials in `server/.env`:
 | Portal | Keys |
 |---|---|
 | MyFlorida (+ sweep) | `MFMP_EMAIL`, `MFMP_PASSWORD` |
-| RideMetro | `HOOPE_LAB_USERNAME`/`HOOPE_LAB_PASSWORD`, `FEDPINTS_USERNAME`/`FEDPINTS_PASSWORD` |
+| EUNA BONFIRE | `HOOPE_LAB_USERNAME`/`HOOPE_LAB_PASSWORD`, `FEDPOINT_USERNAME`/`FEDPOINT_PASSWORD` |
 | BidNet Direct | `BIDNET_USERNAME`, `BIDNET_PASSWORD` |
 | North Dakota | `NORTHDAKOTA_USERNAME`, `NORTHDAKOTA_PASSWORD` (+ `NORTHDAKOTA_MANUAL_LOGIN`) |
 | SEPTA | `SEPTA_USERNAME`, `SEPTA_PASSWORD` |
@@ -398,7 +398,7 @@ Credentials in `server/.env`:
 | Unison | `UNISON_EMAIL`, `UNISON_PASSWORD` |
 | Wisconsin / SAM / NAICS | none (public) |
 
-RideMetro takes one account per run, picked in the console; an account missing
+EUNA BONFIRE takes one account per run, picked in the console; an account missing
 either key is shown as unavailable (`GET /ridemetro/accounts` reports which are
 configured). The former `RIDEMETRO_EMAIL`/`RIDEMETRO_PASSWORD` still work as the
 Hoope Lab account's credentials when the `HOOPE_LAB_*` pair is unset.
@@ -441,7 +441,7 @@ run-persistence, so an in-flight run survives a restart) plus a `*_runs` /
 |---|---|
 | MyFlorida | `scrape_runs`, `mfmp_bids` |
 | MyFlorida sweep | `mfmp_sweep_bids`, `mfmp_sweep_scores` |
-| RideMetro | `ridemetro_runs`, `ridemetro_bids` |
+| EUNA BONFIRE | `ridemetro_runs`, `ridemetro_bids` |
 | BidNet Direct | `bidnet_runs`, `bidnet_bids`, `bidnet_niches`, `bidnet_niche_keywords` |
 | Wisconsin | `wisconsin_runs`, `wisconsin_bids` |
 | North Dakota | `northdakota_runs`, `northdakota_bids` |

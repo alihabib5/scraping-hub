@@ -28,7 +28,7 @@ def list_accounts() -> dict:
 def start_scrape(
     account: str = Query(
         accounts.DEFAULT_ACCOUNT,
-        description="Which login to run as: hoope_lab | fedpints",
+        description="Which login to run as: hoope_lab | fedpoint",
     ),
     live_preview: bool = False,
 ) -> dict:
@@ -47,7 +47,7 @@ def start_scrape(
     # account is in it — two accounts sweep different networks and their reports
     # should not be told apart only by timestamp. Timestamped so concurrent runs
     # never share a workspace.
-    folder = run_manager.make_run_folder(f"RideMetro {selected.label} ({label})")
+    folder = run_manager.make_run_folder(f"EUNA BONFIRE {selected.label} ({label})")
     run = run_manager.create_run(
         "ridemetro",
         folder,
@@ -92,7 +92,7 @@ def list_bids(
     offset: int = Query(0, ge=0),
     session: Session = Depends(get_session),
 ) -> dict:
-    """Return RideMetro opportunities stored in the database, most recent first."""
+    """Return EUNA BONFIRE opportunities stored in the database, most recent first."""
     stmt = select(RideMetroBid).order_by(RideMetroBid.scraped_at.desc(), RideMetroBid.id.desc())
     if run_id:
         stmt = stmt.where(RideMetroBid.run_id == run_id)
@@ -100,7 +100,7 @@ def list_bids(
         stmt = stmt.where(RideMetroBid.agency == agency)
     if account:
         # The account lives on the run row, so this is a join through it — the
-        # two accounts sweep different networks, and "what did Fedpints see"
+        # two accounts sweep different networks, and "what did FedPoint see"
         # is the natural question once both are in the same table.
         stmt = stmt.where(
             RideMetroBid.run_id.in_(

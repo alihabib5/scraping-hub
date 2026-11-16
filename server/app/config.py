@@ -55,21 +55,21 @@ class Settings(BaseSettings):
     # supplier networks, so which one runs decides which agencies are swept.
     hoope_lab_username: str = ""
     hoope_lab_password: str = ""
-    fedpints_username: str = ""
-    fedpints_password: str = ""
+    fedpoint_username: str = ""
+    fedpoint_password: str = ""
     # The pre-accounts keys. Still read as the Hoope Lab account's credentials so
     # a deployment whose .env predates the switch keeps working; the account's
     # own HOOPE_LAB_* keys win when both are set.
-    ridemetro_email: str = ""
-    ridemetro_password: str = ""
-    ridemetro_login_url: str = "https://ridemetro.bonfirehub.com/login"
+    euna_bonfire_email: str = ""
+    euna_bonfire_password: str = ""
+    euna_bonfire_login_url: str = "https://ridemetro.bonfirehub.com/login"
     # The post-login landing page, and where the "My Euna Supplier Network"
     # button lives.
-    ridemetro_opportunities_url: str = "https://ridemetro.bonfirehub.com/portal/?tab=openOpportunities"
+    euna_bonfire_opportunities_url: str = "https://ridemetro.bonfirehub.com/portal/?tab=openOpportunities"
     # Where that button goes, and the My Network tab within it. Used directly
     # when the button/tab isn't clickable (it is feature-flagged in the portal).
-    ridemetro_supplier_network_url: str = "https://vendor.bonfirehub.com"
-    ridemetro_agencies_url: str = "https://vendor.bonfirehub.com/agencies"
+    euna_bonfire_supplier_network_url: str = "https://vendor.bonfirehub.com"
+    euna_bonfire_agencies_url: str = "https://vendor.bonfirehub.com/agencies"
 
     # BidNet Direct
     bidnet_direct_link: str = "https://www.bidnetdirect.com/"

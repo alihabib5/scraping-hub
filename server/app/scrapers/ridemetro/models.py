@@ -24,7 +24,7 @@ class RideMetroRun(Base):
     status: Mapped[str | None] = mapped_column(String(32))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # Which login the run used ("hoope_lab" | "fedpints"). The two accounts see
+    # Which login the run used ("hoope_lab" | "fedpoint"). The two accounts see
     # different supplier networks, so this is what makes two runs' agency lists
     # comparable — without it, a network that shrank and a run under the other
     # account look the same.

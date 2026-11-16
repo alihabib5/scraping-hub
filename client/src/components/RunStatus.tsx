@@ -79,7 +79,7 @@ function runSubtitle(run: RunStatusData): string {
     const progress = run.keyword_progress ? ` ${run.keyword_progress}` : "";
     return run.keyword ? `${run.niche_label} · ${run.keyword}${progress}` : run.niche_label;
   }
-  if (run.scraper === "ridemetro") return "RideMetro";
+  if (run.scraper === "ridemetro") return "EUNA BONFIRE";
   if (run.scraper === "myflorida") return "MyFlorida";
   if (run.scraper === "northdakota") return run.search && run.search !== "all public solicitations" ? run.search : "North Dakota";
   if (run.scraper === "septa") return run.date_filter ? `Opens ${run.date_filter}` : "SEPTA";
