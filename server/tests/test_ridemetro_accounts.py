@@ -20,8 +20,8 @@ from app.scrapers.ridemetro import accounts  # noqa: E402
 
 CREDENTIAL_FIELDS = (
     "hoope_lab_username", "hoope_lab_password",
-    "fedpints_username", "fedpints_password",
-    "ridemetro_email", "ridemetro_password",
+    "fedpoint_username", "fedpoint_password",
+    "euna_bonfire_email", "euna_bonfire_password",
 )
 
 
@@ -51,8 +51,8 @@ def env(monkeypatch, tmp_path):
 
 
 def test_both_accounts_are_offered_with_stable_keys():
-    assert list(accounts.ACCOUNTS) == ["hoope_lab", "fedpints"]
-    assert [a.label for a in accounts.ACCOUNTS.values()] == ["Hoope Lab", "Fedpints"]
+    assert list(accounts.ACCOUNTS) == ["hoope_lab", "fedpoint"]
+    assert [a.label for a in accounts.ACCOUNTS.values()] == ["Hoope Lab", "FedPoint"]
 
 
 def test_a_blank_choice_falls_back_to_the_default_account():
@@ -62,14 +62,14 @@ def test_a_blank_choice_falls_back_to_the_default_account():
 
 
 def test_the_key_is_matched_regardless_of_case_or_padding():
-    assert accounts.get(" Fedpints ").key == "fedpints"
+    assert accounts.get(" FedPoint ").key == "fedpoint"
     assert accounts.get("HOOPE_LAB").key == "hoope_lab"
 
 
 def test_an_unknown_account_names_the_valid_choices():
     with pytest.raises(accounts.UnknownAccount) as excinfo:
         accounts.get("acme")
-    assert "hoope_lab" in str(excinfo.value) and "fedpints" in str(excinfo.value)
+    assert "hoope_lab" in str(excinfo.value) and "fedpoint" in str(excinfo.value)
 
 
 # -- credential routing ------------------------------------------------------
@@ -78,16 +78,16 @@ def test_an_unknown_account_names_the_valid_choices():
 def test_each_account_reads_its_own_credentials(env):
     env(
         hoope_lab_username="hoope@example.com", hoope_lab_password="hoope-secret",
-        fedpints_username="fed@example.com", fedpints_password="fed-secret",
+        fedpoint_username="fed@example.com", fedpoint_password="fed-secret",
     )
-    hoope, fed = accounts.get("hoope_lab"), accounts.get("fedpints")
+    hoope, fed = accounts.get("hoope_lab"), accounts.get("fedpoint")
     assert (hoope.username, hoope.password) == ("hoope@example.com", "hoope-secret")
     assert (fed.username, fed.password) == ("fed@example.com", "fed-secret")
 
 
 def test_hoope_lab_falls_back_to_the_pre_accounts_keys(env):
     """A deployment whose .env still has RIDEMETRO_* keeps working untouched."""
-    env(ridemetro_email="old@example.com", ridemetro_password="old-secret")
+    env(euna_bonfire_email="old@example.com", euna_bonfire_password="old-secret")
     account = accounts.get("hoope_lab")
     assert (account.username, account.password) == ("old@example.com", "old-secret")
     assert account.is_configured
@@ -96,16 +96,16 @@ def test_hoope_lab_falls_back_to_the_pre_accounts_keys(env):
 def test_the_accounts_own_keys_win_over_the_fallback(env):
     env(
         hoope_lab_username="new@example.com", hoope_lab_password="new-secret",
-        ridemetro_email="old@example.com", ridemetro_password="old-secret",
+        euna_bonfire_email="old@example.com", euna_bonfire_password="old-secret",
     )
     account = accounts.get("hoope_lab")
     assert (account.username, account.password) == ("new@example.com", "new-secret")
 
 
-def test_fedpints_has_no_fallback_to_the_shared_keys(env):
+def test_fedpoint_has_no_fallback_to_the_shared_keys(env):
     """The old keys were one account's; they must not silently become the other's."""
-    env(ridemetro_email="old@example.com", ridemetro_password="old-secret")
-    account = accounts.get("fedpints")
+    env(euna_bonfire_email="old@example.com", euna_bonfire_password="old-secret")
+    account = accounts.get("fedpoint")
     assert (account.username, account.password) == ("", "")
     assert not account.is_configured
 
@@ -114,24 +114,24 @@ def test_fedpints_has_no_fallback_to_the_shared_keys(env):
 
 
 def test_a_half_configured_account_is_refused_and_names_the_missing_key(env):
-    env(fedpints_username="fed@example.com")  # password left unset
+    env(fedpoint_username="fed@example.com")  # password left unset
     with pytest.raises(accounts.AccountNotConfigured) as excinfo:
-        accounts.require("fedpints")
+        accounts.require("fedpoint")
     message = str(excinfo.value)
-    assert "FEDPINTS_PASSWORD" in message
-    assert "FEDPINTS_USERNAME" not in message  # that half is fine — don't muddy it
+    assert "FEDPOINT_PASSWORD" in message
+    assert "FEDPOINT_USERNAME" not in message  # that half is fine — don't muddy it
 
 
 def test_an_entirely_unset_account_names_both_keys(env):
     with pytest.raises(accounts.AccountNotConfigured) as excinfo:
-        accounts.require("fedpints")
-    assert "FEDPINTS_USERNAME" in str(excinfo.value)
-    assert "FEDPINTS_PASSWORD" in str(excinfo.value)
+        accounts.require("fedpoint")
+    assert "FEDPOINT_USERNAME" in str(excinfo.value)
+    assert "FEDPOINT_PASSWORD" in str(excinfo.value)
 
 
 def test_require_returns_a_usable_account(env):
-    env(fedpints_username="fed@example.com", fedpints_password="fed-secret")
-    assert accounts.require("fedpints").key == "fedpints"
+    env(fedpoint_username="fed@example.com", fedpoint_password="fed-secret")
+    assert accounts.require("fedpoint").key == "fedpoint"
 
 
 # -- what the console is told ------------------------------------------------
@@ -142,15 +142,15 @@ def test_the_catalog_reports_configuration_without_naming_the_login(env):
     not even masked — so it cannot end up on screen or in a network payload."""
     env(
         hoope_lab_username="raheel@hoopoelabs.com", hoope_lab_password="hoope-secret",
-        fedpints_username="", fedpints_password="",
+        fedpoint_username="", fedpoint_password="",
     )
     catalog = accounts.catalog()
-    assert [entry["key"] for entry in catalog] == ["hoope_lab", "fedpints"]
+    assert [entry["key"] for entry in catalog] == ["hoope_lab", "fedpoint"]
 
     hoope, fed = catalog
     assert hoope["configured"] is True and fed["configured"] is False
     # The keys to fix are named; the credentials and the address are not.
-    assert fed["password_env"] == "FEDPINTS_PASSWORD"
+    assert fed["password_env"] == "FEDPOINT_PASSWORD"
     payload = str(catalog)
     for secret in ("raheel@hoopoelabs.com", "hoopoelabs.com", "raheel", "hoope-secret"):
         assert secret not in payload
@@ -179,16 +179,16 @@ def client():
 def test_accounts_endpoint_lists_both_and_the_default(client):
     body = client.get("/ridemetro/accounts").json()
     assert body["default"] == accounts.DEFAULT_ACCOUNT
-    assert [entry["key"] for entry in body["accounts"]] == ["hoope_lab", "fedpints"]
+    assert [entry["key"] for entry in body["accounts"]] == ["hoope_lab", "fedpoint"]
 
 
 def test_starting_an_unconfigured_account_is_refused_before_a_run_exists(client, env):
     from app.core import run_manager
 
     before = len(run_manager.list_runs("ridemetro"))
-    response = client.post("/ridemetro/scrape", params={"account": "fedpints"})
+    response = client.post("/ridemetro/scrape", params={"account": "fedpoint"})
     assert response.status_code == 400
-    assert "FEDPINTS_USERNAME" in response.json()["detail"]
+    assert "FEDPOINT_USERNAME" in response.json()["detail"]
     # No run was created, so nothing appears in the history to explain away.
     assert len(run_manager.list_runs("ridemetro")) == before
 
@@ -196,28 +196,28 @@ def test_starting_an_unconfigured_account_is_refused_before_a_run_exists(client,
 def test_starting_an_unknown_account_is_a_400_not_a_default(client):
     response = client.post("/ridemetro/scrape", params={"account": "acme"})
     assert response.status_code == 400
-    assert "Unknown RideMetro account" in response.json()["detail"]
+    assert "Unknown EUNA BONFIRE account" in response.json()["detail"]
 
 
 def test_a_started_run_records_which_account_it_uses(client, env, monkeypatch):
-    env(fedpints_username="fed@example.com", fedpints_password="fed-secret")
+    env(fedpoint_username="fed@example.com", fedpoint_password="fed-secret")
     # Don't actually launch a browser: the background task is what runs it.
     monkeypatch.setattr(
         "app.scrapers.ridemetro.router.execute_run", lambda run_id: None
     )
-    body = client.post("/ridemetro/scrape", params={"account": "fedpints"}).json()
+    body = client.post("/ridemetro/scrape", params={"account": "fedpoint"}).json()
 
     from app.core import run_manager
 
     run = run_manager.get_run(body["run_id"])
-    assert body["account"] == "fedpints"
-    assert run["account"] == "fedpints"
-    assert run["account_label"] == "Fedpints"
+    assert body["account"] == "fedpoint"
+    assert run["account"] == "fedpoint"
+    assert run["account_label"] == "FedPoint"
     # Run state is served to the console, so the address is not on it.
     assert "fed@example.com" not in str(run)
     # The account is in the workspace name, so it reaches the archive filename —
     # two accounts' reports must not be told apart only by timestamp.
-    assert "Fedpints" in Path(run["folder"]).name
+    assert "FedPoint" in Path(run["folder"]).name
 
 
 # -- the flow is unchanged by the choice -------------------------------------
@@ -225,21 +225,21 @@ def test_a_started_run_records_which_account_it_uses(client, env, monkeypatch):
 
 def test_the_scraper_types_the_selected_accounts_credentials(env, monkeypatch):
     """The login sequence is untouched; only the strings it types differ."""
-    env(fedpints_username="fed@example.com", fedpints_password="fed-secret")
+    env(fedpoint_username="fed@example.com", fedpoint_password="fed-secret")
 
     from app.core import run_manager
     from app.scrapers.ridemetro.scraper import RideMetroScraper
 
-    run = run_manager.create_run("ridemetro", Path("/tmp"), {"account": "fedpints"})
+    run = run_manager.create_run("ridemetro", Path("/tmp"), {"account": "fedpoint"})
     scraper = RideMetroScraper(run["run_id"])
     scraper._select_account()
 
-    assert scraper.account.key == "fedpints"
+    assert scraper.account.key == "fedpoint"
     assert scraper.account.username == "fed@example.com"
     assert scraper.account.password == "fed-secret"
     # …and the run publishes which account it is by name only.
     stored = run_manager.get_run(run["run_id"])
-    assert stored["account_label"] == "Fedpints"
+    assert stored["account_label"] == "FedPoint"
     for secret in ("fed-secret", "fed@example.com"):
         assert secret not in str(stored)
 
@@ -248,7 +248,7 @@ def test_a_run_whose_account_became_unusable_fails_before_the_browser_starts(env
     from app.core import run_manager
     from app.scrapers.ridemetro.scraper import RideMetroScraper
 
-    run = run_manager.create_run("ridemetro", Path("/tmp"), {"account": "fedpints"})
+    run = run_manager.create_run("ridemetro", Path("/tmp"), {"account": "fedpoint"})
     scraper = RideMetroScraper(run["run_id"])
     with pytest.raises(accounts.AccountNotConfigured):
         scraper._select_account()

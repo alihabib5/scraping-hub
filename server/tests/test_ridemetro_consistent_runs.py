@@ -37,7 +37,7 @@ def _no_sleep(monkeypatch):
 
 
 def _scraper():
-    run = run_manager.create_run("ridemetro", Path("/tmp"), {"account": "fedpints"})
+    run = run_manager.create_run("ridemetro", Path("/tmp"), {"account": "fedpoint"})
     return rm.RideMetroScraper(run["run_id"])
 
 

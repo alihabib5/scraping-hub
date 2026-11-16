@@ -64,12 +64,12 @@ export const PORTALS: PortalMeta[] = [
   },
   {
     key: "ridemetro",
-    label: "RideMetro",
+    label: "EUNA BONFIRE",
     operator: "Houston Metropolitan Transit Authority",
     host: "ridemetro.bonfirehub.com",
     tagline: "Open public opportunities",
     description:
-      "Capture every open public opportunity published to the RideMetro Bonfire portal, with project details written to the database and an Excel sheet.",
+      "Capture every open public opportunity published to the EUNA BONFIRE portal, with project details written to the database and an Excel sheet.",
     outputs: ["Full opportunity list", "Project details", "Excel export"],
     icon: "transit",
     accent: {

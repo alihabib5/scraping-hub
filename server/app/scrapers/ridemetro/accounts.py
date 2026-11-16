@@ -6,7 +6,7 @@ Everything downstream of the login is identical, which is why this module holds
 only the credential lookup and none of the flow.
 
 Credentials come from `.env` through `Settings`, with the account's own keys
-first and (for Hoope Lab) the original `RIDEMETRO_*` keys as a fallback, so a
+first and (for Hoope Lab) the original `EUNA_BONFIRE_*` keys as a fallback, so a
 deployment that predates the account switch keeps running unchanged.
 
 Nothing here returns a credential, and nothing sent to the console names the
@@ -66,16 +66,16 @@ ACCOUNTS: dict[str, Account] = {
         password_env="HOOPE_LAB_PASSWORD",
         username_field="hoope_lab_username",
         password_field="hoope_lab_password",
-        fallback_username_field="ridemetro_email",
-        fallback_password_field="ridemetro_password",
+        fallback_username_field="euna_bonfire_email",
+        fallback_password_field="euna_bonfire_password",
     ),
-    "fedpints": Account(
-        key="fedpints",
-        label="Fedpints",
-        username_env="FEDPINTS_USERNAME",
-        password_env="FEDPINTS_PASSWORD",
-        username_field="fedpints_username",
-        password_field="fedpints_password",
+    "fedpoint": Account(
+        key="fedpoint",
+        label="FedPoint",
+        username_env="FEDPOINT_USERNAME",
+        password_env="FEDPOINT_PASSWORD",
+        username_field="fedpoint_username",
+        password_field="fedpoint_password",
     ),
 }
 
@@ -98,7 +98,7 @@ def get(key: str | None) -> Account:
     account = ACCOUNTS.get(resolved)
     if account is None:
         raise UnknownAccount(
-            f"Unknown RideMetro account {key!r} — choose one of: "
+            f"Unknown EUNA BONFIRE account {key!r} — choose one of: "
             f"{', '.join(ACCOUNTS)}"
         )
     return account
