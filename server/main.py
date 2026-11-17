@@ -20,6 +20,7 @@ from app.scrapers.philadelphia.router import router as philadelphia_router
 from app.scrapers.septa.router import router as septa_router
 from app.scrapers.unison.router import router as unison_router
 from app.scrapers.wisconsin.router import router as wisconsin_router
+from app.scrapers.txsmartbuy.router import router as txsmartbuy_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ app.include_router(myflorida_sweep_router)
 app.include_router(ridemetro_router)
 app.include_router(bidnet_router)
 app.include_router(wisconsin_router)
+app.include_router(txsmartbuy_router)
 app.include_router(northdakota_router)
 app.include_router(septa_router)
 app.include_router(caleprocure_router)
@@ -74,7 +76,7 @@ def health() -> dict:
         "status": "ok",
         "service": "scraping-hub",
         "scrapers": [
-            "myflorida", "ridemetro", "bidnet", "wisconsin", "northdakota",
+            "myflorida", "ridemetro", "bidnet", "wisconsin", "txsmartbuy", "northdakota",
             "septa", "caleprocure", "emma", "philadelphia", "sam", "unison", "naics",
         ],
     }

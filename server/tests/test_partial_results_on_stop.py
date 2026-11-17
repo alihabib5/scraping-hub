@@ -44,6 +44,7 @@ BASE_SCRAPERS = [
     ("philadelphia",    "app.scrapers.philadelphia.scraper",    "PhiladelphiaScraper"),
     ("emma",            "app.scrapers.emma.scraper",            "EmmaScraper"),
     ("wisconsin",       "app.scrapers.wisconsin.scraper",       "WisconsinScraper"),
+    ("txsmartbuy",      "app.scrapers.txsmartbuy.scraper",      "TxSmartBuyScraper"),
     ("northdakota",     "app.scrapers.northdakota.scraper",     "NorthDakotaScraper"),
 ]
 RUNNERS = [("sam", "app.scrapers.sam.runner"), ("unison", "app.scrapers.unison.runner")]

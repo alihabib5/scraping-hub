@@ -10,6 +10,7 @@
 
 import tempfile
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response
@@ -301,5 +302,13 @@ def _excel_response(run: dict) -> Response:
     return Response(
         content=data,
         media_type=exports.XLSX_MIME,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _attachment(filename)},
     )
+
+
+def _attachment(filename: str) -> str:
+    """Content-Disposition for any filename. HTTP headers are Latin-1 only, so a
+    name with e.g. "…" or "ü" in it would crash the response (500); browsers take
+    the RFC 5987 `filename*` and older clients the ASCII fallback."""
+    fallback = filename.encode("ascii", "replace").decode("ascii").replace('"', "'")
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename)}"

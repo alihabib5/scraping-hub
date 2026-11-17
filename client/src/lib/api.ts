@@ -5,6 +5,7 @@ export type Portal =
   | "ridemetro"
   | "bidnet"
   | "wisconsin"
+  | "txsmartbuy"
   | "northdakota"
   | "septa"
   | "sam"
@@ -52,6 +53,14 @@ export interface BidResult {
   closing_date?: string;
   documents_count?: string;
   matched_keyword?: string;
+  // Texas SmartBuy ESBD (status and detail_url are shared fields above)
+  name?: string;
+  solicitation_id?: string;
+  due_date?: string;
+  due_time?: string;
+  agency_number?: string;
+  posting_date?: string;
+  nigp_codes?: string;
   // Wisconsin
   event_number?: string;
   solicitation_reference?: string;
@@ -767,6 +776,41 @@ export function startWisconsinScrape(
   return request(`/wisconsin/scrape${livePreviewQuery(livePreview)}`, {
     method: "POST",
     body: JSON.stringify({ keyword, agency, nigp_code: nigpCode }),
+  });
+}
+
+// -- Texas SmartBuy ESBD ----------------------------------------------------
+
+/** ESBD's Solicitations filters, as the server accepts them. Dates are YYYY-MM-DD. */
+export interface TxSmartBuyCriteria {
+  agency: string;
+  agency_number: string;
+  status: string;
+  class_item_codes: string;
+  keyword: string;
+  solicitation_id: string;
+  date_range: string;
+  start_date: string;
+  end_date: string;
+}
+
+export interface TxSmartBuyFilters {
+  agencies: string[];
+  statuses: { value: string; label: string }[];
+  date_ranges: { value: string; label: string }[];
+}
+
+export function getTxSmartBuyFilters(): Promise<TxSmartBuyFilters> {
+  return request("/txsmartbuy/filters");
+}
+
+export function startTxSmartBuyScrape(
+  criteria: TxSmartBuyCriteria,
+  livePreview = false,
+): Promise<{ run_id: string; search: string; folder: string }> {
+  return request(`/txsmartbuy/scrape${livePreviewQuery(livePreview)}`, {
+    method: "POST",
+    body: JSON.stringify(criteria),
   });
 }
 

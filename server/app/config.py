@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     # Wisconsin eSupplier (PeopleSoft) — public bidder portal, no login.
     wisconsin_url: str = "https://esupplier.wi.gov/psp/esupplier/SUPPLIER/ERP/h/?tab=WI_BIDDER"
 
+    # Texas SmartBuy ESBD (Electronic State Business Daily), Solicitations tab. No login.
+    txsmartbuy_esbd_url: str = "https://www.txsmartbuy.gov/esbd"
+
     # North Dakota (ND Buys / Ivalua) — supplier login via ND OAuth (Azure AD B2C).
     northdakota_username: str = ""
     northdakota_password: str = ""

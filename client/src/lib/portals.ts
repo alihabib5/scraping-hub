@@ -24,6 +24,7 @@ export interface PortalMeta {
     | "transit"
     | "network"
     | "capitol"
+    | "star"
     | "prairie"
     | "rail"
     | "federal"
@@ -111,6 +112,23 @@ export const PORTALS: PortalMeta[] = [
       dot: "bg-amber-500",
       rail: "bg-amber-500",
       wash: "from-amber-50",
+    },
+  },
+  {
+    key: "txsmartbuy",
+    label: "Texas SmartBuy",
+    operator: "Texas Comptroller of Public Accounts",
+    host: "www.txsmartbuy.gov/esbd",
+    tagline: "ESBD solicitations",
+    description:
+      "Search the Electronic State Business Daily with the same filters as the portal — agency, status, class/item codes, keyword, solicitation ID and dates — and export every match to Excel.",
+    outputs: ["ESBD filters", "CSV export", "Excel export"],
+    icon: "star",
+    accent: {
+      tile: "bg-red-50 text-red-600 ring-red-100",
+      dot: "bg-red-500",
+      rail: "bg-red-500",
+      wash: "from-red-50",
     },
   },
   {

@@ -25,6 +25,7 @@ def init_db() -> None:
     from app.scrapers.bidnet import models as _bidnet_models  # noqa: F401
     from app.scrapers.bidnet import niche_models as _bidnet_niche_models  # noqa: F401
     from app.scrapers.wisconsin import models as _wisconsin_models  # noqa: F401
+    from app.scrapers.txsmartbuy import models as _txsmartbuy_models  # noqa: F401
     from app.scrapers.northdakota import models as _northdakota_models  # noqa: F401
     from app.scrapers.septa import models as _septa_models  # noqa: F401
     from app.scrapers.evalconfig import models as _evalconfig_models  # noqa: F401
