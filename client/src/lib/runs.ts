@@ -105,6 +105,10 @@ export function runTarget(run: RunStatus): string {
     if (!search || search === "all current solicitations") return "All current solicitations";
     return search;
   }
+  if (run.scraper === "txsmartbuy") {
+    const search = run.search?.trim();
+    return !search || search === "all solicitations" ? "All solicitations" : search;
+  }
   if (run.scraper === "northdakota") {
     const search = run.search?.trim();
     if (!search || search === "all public solicitations") return "All public solicitations";
@@ -159,7 +163,7 @@ const NO_DOWNLOAD = new Set(["naics", "caleprocure", "evalconfig"]);
  * button label, so when it drifts the endpoint quietly serves a .xlsx while the
  * whole UI still says ZIP.
  */
-const EXCEL_ONLY = new Set(["sam", "septa", "ridemetro", "unison", "emma"]);
+const EXCEL_ONLY = new Set(["sam", "septa", "ridemetro", "unison", "emma", "txsmartbuy"]);
 
 /**
  * Portals whose archive keeps its bid documents in their own subtree, so those

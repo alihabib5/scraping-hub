@@ -58,6 +58,13 @@ export default function PortalIcon({ name, className = "h-5 w-5" }: { name: Port
           <path d="M4 20.5h16M3.5 17.5h17" />
         </svg>
       );
+    case "star":
+      // The Lone Star: Texas.
+      return (
+        <svg {...common}>
+          <path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6.1L12 16.6l-5.4 3 1.2-6.1-4.5-4.2 6.1-.7L12 3Z" />
+        </svg>
+      );
     case "prairie":
       // Wheat and horizon: North Dakota's northern plains.
       return (
