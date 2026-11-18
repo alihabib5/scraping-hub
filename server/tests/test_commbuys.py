@@ -39,6 +39,41 @@ def test_list_rows_are_read_by_header_and_link_the_public_page():
     assert "bidAck" not in r["detail_url"]
 
 
+def test_the_list_link_to_the_bid_is_kept():
+    ack = "https://www.commbuys.com/bso/seller/bidAck.sda?status=Open&destination=detail&bidId=BD-27-1817-HA309-HA309-135486"
+    records = scraper.rows_to_records(HEADER, ROWS[:1], [ack])
+    assert records[0]["ack_url"] == ack
+
+
+# The item section of BD-27-1166-COS03-COS03-135263 as the page's text reads (2026-11-19).
+TRUCK_PAGE = (
+    "Item Information\n"
+    "Item # 1:   ( 25-10  -  00 )  \tReBid: 2026 or Newer Hybrid Refrigerated Box Truck With a Power Tailgate\n\n"
+    "U N S P S C Code:\t25-10-00\n   Motor vehicles\n"
+    "Qty\tUnit Cost\tUOM\tTotal Discount Amt.\tTotal Cost\n"
+    "1.0\t \tEA - Each\t \t \n\n"
+    "Manufacturer:\t\tBrand:\t\tModel:\t\n"
+    "Item # 2:   ( 52-14  -  15 )  \tSpecifications may be obtained free of charge\n"
+)
+
+
+def test_line_items_are_read_from_a_bid_page():
+    items = scraper.parse_items(TRUCK_PAGE)
+    assert [i["item_number"] for i in items] == ["1", "2"]
+    first = items[0]
+    assert first["name"].startswith("ReBid: 2026 or Newer Hybrid Refrigerated Box Truck")
+    assert first["nigp_code"] == "25-10-00" and first["specification"] == "Motor vehicles"
+    assert (first["quantity"], first["unit"]) == ("1.0", "EA")
+    assert (items[1]["quantity"], items[1]["unit"]) == ("", "")
+    assert scraper.parse_items("no items on this page") == []
+
+
+def test_a_bid_whose_page_was_not_read_goes_to_manual_review(monkeypatch):
+    monkeypatch.setattr(evaluation, "evaluate_bid", lambda *a, **k: pytest.fail("judged an unread bid"))
+    decision, reason = evaluation.decide({"bid_number": "1", "description": "Office Supplies", "detail_error": "timeout"})
+    assert decision == "MANUAL REVIEW" and "could not be read" in reason
+
+
 def test_a_list_without_its_columns_is_refused():
     with pytest.raises(ValueError, match="missing columns"):
         scraper.rows_to_records(["Something"], [["x"]])
@@ -102,9 +137,9 @@ def test_the_excel_is_one_sheet_with_every_verdict(tmp_path):
     assert book.sheetnames == ["COMMBUYS Bids"]
     sheet = book.active
     assert [c.value for c in sheet[1]] == ["Bid #", "Organization", "Alternate Id", "Buyer", "Description",
-                                           "Purchase Method", "Bid Opening Date", "Available Date", "Bid Link",
+                                           "Line Items", "Purchase Method", "Bid Opening Date", "Available Date", "Bid Link",
                                            "Decision", "Reason"]
-    assert [row[9] for row in sheet.iter_rows(min_row=2, values_only=True)] == ["PASS", "REJECT", "MANUAL REVIEW"]
+    assert [row[10] for row in sheet.iter_rows(min_row=2, values_only=True)] == ["PASS", "REJECT", "MANUAL REVIEW"]
     fills = [sheet.cell(row=r, column=1).fill.fgColor.rgb for r in (2, 3, 4)]
     assert len(set(fills)) == 3  # pass plain, reject red, review yellow
 
@@ -141,3 +176,23 @@ def test_the_download_is_a_dated_excel():
     run = {"run_id": "r1", "scraper": "commbuys", "search": "available 2026-11-15 to 2026-11-18"}
     assert exports.is_excel_only(run)
     assert exports.excel_name(run) == "COMMBUYS_(available 2026-11-15 to 2026-11-18).xlsx"
+
+
+def test_a_placeholder_line_item_does_not_make_a_service_pass():
+    # 19 Nov: judged the Philadelphia way, this bid passed as "hardware" because
+    # COMMBUYS gives almost every bid one "1.0 EA" item. Real engine, no stubs.
+    record = {
+        "bid_number": "BD-SECURITY", "description": "Security Guard Services",
+        "extra_header_data": {"Bid Type": "OPEN"},
+        "items": [{"item_number": "1", "name": "Security guard services for a two-year term",
+                   "quantity": "1.0", "unit": "EA", "specification": "Security services"}],
+    }
+    assert evaluation.decide(record)[0] != "PASS"
+
+
+def test_the_line_items_reach_the_judge(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(evaluation, "evaluate_bid", lambda bid_id, text, **k: seen.update(text=text) or {"decision": "PURSUE"})
+    evaluation.decide({"bid_number": "1", "description": "Gloves",
+                       "items": [{"name": "Medical Gloves - Proprietary spec", "quantity": "1.0", "unit": "EA"}]})
+    assert "Medical Gloves" in seen["text"]

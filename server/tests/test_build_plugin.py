@@ -7,10 +7,12 @@ import ast
 import sys
 from pathlib import Path
 
+import pytest
+
 SERVER = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SERVER.parent / "installer"))
 
-from nuitka_plugin import strip_docstrings  # noqa: E402
+strip_docstrings = pytest.importorskip("nuitka_plugin").strip_docstrings  # installer/ is not in git
 
 SAMPLE = '''"""Module docstring: how the scraper works."""
 from __future__ import annotations

@@ -53,20 +53,27 @@ class CommbuysBid(Base):
     decision: Mapped[str | None] = mapped_column(String(16), index=True)
     decision_reason: Mapped[str | None] = mapped_column(Text)
 
-    # The list row exactly as COMMBUYS showed it.
+    # The list row exactly as COMMBUYS showed it, plus what the bid's own page
+    # added: its header table ("header") and its line items ("line_items").
     raw_data: Mapped[dict] = mapped_column(JSONB, default=dict)
 
     run: Mapped["CommbuysRun"] = relationship(back_populates="bids")
 
+    @property
+    def item_details(self) -> str | None:
+        # Kept in raw_data rather than a column of its own: tables are only ever created, never altered.
+        return (self.raw_data or {}).get("line_items")
+
 
 # The open-bids list's columns (less its Q & A / Quotes / Bid Holder links), the
-# Available Date read from each bid's page, the page itself, and the verdict.
+# bid's line items and Available Date from its own page, the page, and the verdict.
 EXCEL_COLUMNS: list[tuple[str, str]] = [
     ("bid_number", "Bid #"),
     ("organization", "Organization"),
     ("alternate_id", "Alternate Id"),
     ("buyer", "Buyer"),
     ("description", "Description"),
+    ("item_details", "Line Items"),
     ("purchase_method", "Purchase Method"),
     ("opening_date", "Bid Opening Date"),
     ("available_date", "Available Date"),

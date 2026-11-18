@@ -14,7 +14,6 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "installer"))
 
-import make_credentials  # noqa: E402
 from app.core import accounts, run_manager  # noqa: E402
 from main import app  # noqa: E402
 
@@ -61,6 +60,7 @@ def test_a_run_records_who_started_it(tmp_path):
 
 
 def test_make_credentials_reads_the_accounts_csv(tmp_path):
+    make_credentials = pytest.importorskip("make_credentials")  # installer/ is not in git
     csv = tmp_path / "accounts.csv"
     csv.write_text("username,name,password\nSara,Sara Khan,correct horse\n", encoding="utf-8")
     made = make_credentials.accounts_from_csv(csv)

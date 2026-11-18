@@ -3,19 +3,21 @@
 Flow: sign in (Sign In -> User ID / Password -> Sign In) -> the seller home page
 -> the open-bids list (bidList.sda?status=Open&category=all) -> read every page
 of it -> read each bid's Available Date from its public page -> keep the bids
-whose Available Date is in the console's range -> Pass / Reject each with the
-shared matrix -> store in the DB, from which the Excel (a Pass sheet and a Reject
-sheet) is built on demand.
+whose Available Date is in the console's range -> sign in again and open each
+kept bid the way Philadelphia does (the list's own bidAck.sda link), reading its
+header and line items -> PASS / REJECT / MANUAL REVIEW each with Philadelphia's
+evaluation -> store in the DB, from which the one-sheet Excel is built on demand.
 
-The bid number in the list links to an acknowledgement page (bidAck.sda) that
-acts on the vendor account, so it is never opened; the public bid page carries
-the same Available Date without touching the account. Those pages are read
-through the signed-in browser (its own fetch, a few at a time): COMMBUYS sits
-behind a firewall that answers a plain HTTP client with an empty 202 challenge.
+COMMBUYS and PHLContracts are the same platform (Periscope BSO), so the header
+reader is Philadelphia's own. The Available Dates are read first, from the public
+bid pages through the browser's own fetch (a plain HTTP client gets the
+firewall's empty 202), because that is quick for the whole list; only the bids
+in range are then opened one by one.
 """
 
 import logging
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any
@@ -30,6 +32,8 @@ from app.core.base_scraper import BaseScraper, StopRequested
 from app.core.exports import archive_run
 from app.core.filenames import sanitize_filename
 from app.scrapers.commbuys import evaluation, export, filters
+from app.scrapers.philadelphia import details as phl_details
+from app.scrapers.philadelphia.scraper import PhiladelphiaScraper
 from app.services.notifier import notify_scrape_completion
 
 logger = logging.getLogger(__name__)
@@ -41,6 +45,7 @@ DETAIL_BATCH = 6  # bid pages fetched at once; a few hundred take a few minutes
 DETAIL_SCRIPT_TIMEOUT = 180  # seconds for one batch
 MAX_VISIT_FAILURES = 5  # bid pages in a row that will not open before the run stops trying
 MAX_PAGES = 400  # a guard against a pager that never ends (the list is ~25 bids a page)
+SETTLE_SECONDS = 1.5  # as Philadelphia: let the detail page finish drawing
 
 # The list's rows by header name, and the "1-25 of 593" counter. One call, so a
 # page change can't leave half a table read.
@@ -49,8 +54,12 @@ const t = document.getElementById('resultsTable');
 const counter = [...document.querySelectorAll('td.inputs-01')].map(e => e.innerText.trim())
   .find(s => /^\\d+\\s*-\\s*\\d+\\s+of\\s+\\d+/.test(s)) || null;
 if (!t) return {counter, header: [], rows: []};
-const rows = [...t.rows].map(r => [...r.cells].map(c => c.innerText.replace(/\\s+/g, ' ').trim()));
-return {counter, header: rows[0] || [], rows: rows.slice(1).filter(r => r.length > 1)};
+const all = [...t.rows].map(r => ({
+  cells: [...r.cells].map(c => c.innerText.replace(/\\s+/g, ' ').trim()),
+  link: (r.querySelector("a[href*='destination=detail']") || {}).href || '',
+}));
+const data = all.slice(1).filter(r => r.cells.length > 1);
+return {counter, header: (all[0] || {cells: []}).cells, rows: data.map(r => r.cells), links: data.map(r => r.link)};
 """
 
 # Fetch a batch of bid pages from inside the page (it holds the firewall's pass)
@@ -79,21 +88,56 @@ def counter_range(text: str | None) -> tuple[int, int, int] | None:
     return (int(match[1]), int(match[2]), int(match[3].replace(",", ""))) if match else None
 
 
-def rows_to_records(header: list[str], rows: list[list[str]]) -> list[dict[str, Any]]:
-    """List rows as records, by header name, each with its public page link."""
+def rows_to_records(header: list[str], rows: list[list[str]], links: list[str] | None = None) -> list[dict[str, Any]]:
+    """List rows as records, by header name, each with its public page link and
+    (when given) the list's own signed-in link to the bid."""
     missing = {"Bid #", "Description"} - set(header)
     if missing:
         raise ValueError(f"COMMBUYS bid list is missing columns: {', '.join(sorted(missing))}")
     records = []
-    for row in rows:
+    for row, link in zip(rows, links or [""] * len(rows)):
         raw = dict(zip(header, row))
         record = {attr: raw.get(name, "") for name, attr in LIST_FIELDS.items()}
         if not record["bid_number"]:
             continue
         record["detail_url"] = DETAIL_URL.format(quote(record["bid_number"], safe=""))
+        record["ack_url"] = link
         record["raw"] = raw
         records.append(record)
     return records
+
+
+# "Item # 1:   ( 25-10  -  00 )  <description>", its category under "U N S P S C
+# Code:", and a "Qty  Unit Cost  UOM ..." header row with the values on the next.
+_ITEM = re.compile(r"^Item #\s*(\d+):\s*\(\s*([\d\s-]+?)\s*\)\s*(.*)$")
+
+
+def parse_items(page_text: str) -> list[dict[str, str]]:
+    """A COMMBUYS bid page's line items, in the shape Philadelphia's evaluation reads.
+
+    PHLContracts writes items as "Item: 1"; COMMBUYS as "Item # 1:", so the
+    Philadelphia item reader finds none here and this one is COMMBUYS's own.
+    """
+    items: list[dict[str, str]] = []
+    lines = [line.strip() for line in page_text.replace("\xa0", " ").splitlines()]
+    for i, line in enumerate(lines):
+        opener = _ITEM.match(line)
+        if opener:
+            items.append({"item_number": opener[1], "nigp_code": re.sub(r"\s+", "", opener[2]),
+                          "name": opener[3].strip(), "quantity": "", "unit": "", "specification": ""})
+            continue
+        if not items:
+            continue
+        item = items[-1]
+        if line.startswith("U N S P S C Code") and i + 1 < len(lines):
+            item["specification"] = lines[i + 1]
+        elif line.startswith("Qty") and "UOM" in line and i + 1 < len(lines):
+            headings = [h.strip() for h in lines[i].split("\t")]
+            values = [v.strip() for v in lines[i + 1].split("\t")]
+            row = dict(zip(headings, values))
+            item["quantity"] = row.get("Qty", "")
+            item["unit"] = row.get("UOM", "").split(" - ")[0]  # "EA - Each" -> "EA", as the matrix's units are
+    return items
 
 
 class CommbuysScraper(BaseScraper):
@@ -155,7 +199,7 @@ class CommbuysScraper(BaseScraper):
         if first is None or first[2] == 0:
             return []
         total, per_page = first[2], first[1] - first[0] + 1
-        records = rows_to_records(page["header"], page["rows"])
+        records = rows_to_records(page["header"], page["rows"], page.get("links"))
         number = 1
         while len(records) < total and number < MAX_PAGES:
             self.raise_if_stopped()
@@ -167,7 +211,7 @@ class CommbuysScraper(BaseScraper):
                 lambda d: (p := d.execute_script(_READ_PAGE))["counter"]
                 and (counter_range(p["counter"]) or (0,))[0] == expected_start and p
             )
-            records.extend(rows_to_records(page["header"], page["rows"]))
+            records.extend(rows_to_records(page["header"], page["rows"], page.get("links")))
             run_manager.update_run(self.run_id, bids_found=len(records))
         if len(records) != total:
             run_manager.add_warning(self.run_id, f"COMMBUYS listed {total:,} open bids but {len(records):,} were read.")
@@ -235,6 +279,35 @@ class CommbuysScraper(BaseScraper):
         if unread:
             run_manager.add_warning(self.run_id, f"{unread} bid page(s) showed no Available Date; those bids are left out.")
 
+    def read_details(self, records: list[dict[str, Any]]) -> None:
+        """Open each bid as Philadelphia does and read its header and line items.
+
+        A bid whose page cannot be read keeps its list fields and a
+        `detail_error`, which sends it to MANUAL REVIEW: judged on its title
+        alone it could pass unread.
+        """
+        for done, record in enumerate(records, start=1):
+            self.raise_if_stopped()
+            self.set_step(f"reading_bid:{done}/{len(records)} {record['bid_number']}")
+            try:
+                self.navigate(record.get("ack_url") or record["detail_url"])
+                time.sleep(SETTLE_SECONDS)
+                if "login.xhtml" in self.driver.current_url:
+                    raise RuntimeError("COMMBUYS sent the bid back to the sign-in page")
+                header = self.driver.execute_script(PhiladelphiaScraper._JS_HEADER) or {}
+                if not header:
+                    raise RuntimeError("the bid page showed no header")
+                text = self.driver.execute_script("return document.body ? document.body.innerText : '';") or ""
+            except StopRequested:
+                raise
+            except Exception as exc:  # noqa: BLE001 — one unreadable bid must not end the run
+                record["detail_error"] = f"bid page not read ({str(exc).splitlines()[0][:120]})"
+                logger.warning("[run %s] %s: %s", self.run_id, record["bid_number"], record["detail_error"])
+                continue
+            record["extra_header_data"] = header
+            record["items"] = parse_items(text)
+            record["item_details"] = phl_details.render_items_cell(record)
+
     def flush_partial(self) -> int:
         run = run_manager.get_run(self.run_id) or {}
         return partials.flush_records(
@@ -261,8 +334,12 @@ class CommbuysScraper(BaseScraper):
                 kept = [r for r in listed if filters.in_range(r["available_date"], start, end)]
             else:
                 kept = listed
-            self.stop_driver()  # the rest is local work
             logger.info("[run %s] %d of %d open bid(s) in the Available Date range", self.run_id, len(kept), len(listed))
+            if kept:
+                if start or end:
+                    self.sign_in()  # reading the dates cleared the session's cookies
+                self.read_details(kept)
+            self.stop_driver()  # the rest is local work
 
             self.set_step("evaluating")
             passed = evaluation.apply(kept)

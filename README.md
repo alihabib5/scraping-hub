@@ -98,13 +98,17 @@ a ZIP around a single sheet is a folder to unpack for nothing.
 - **COMMBUYS** (Massachusetts) — supplier login. Signs in, opens the seller home
   and the open-bids list (`bidList.sda?status=Open&category=all`), reads every
   page of it, then reads each bid's **Available Date** from its public page (the
-  list does not show it) and keeps the bids inside the console's date range. Every
-  kept bid is marked **PASS**, **REJECT** or **MANUAL REVIEW** by the shared
-  evaluation matrix (the same engine and kill-words as SAM), and the Excel is one
-  sheet with a Decision and Reason column (REJECT rows red, MANUAL REVIEW yellow). The list's own bid link (`bidAck.sda`) acts on
-  the vendor account, so it is never opened. The site's firewall answers plain
-  HTTP clients with an empty `202`, so bid pages are fetched through the
-  signed-in browser.
+  list does not show it; fetched through the browser, since the site's firewall
+  answers plain HTTP with an empty `202`) and keeps the bids inside the console's
+  date range. Those are then opened the way Philadelphia opens a bid — same
+  platform (Periscope BSO), same `bidAck.sda` link, Philadelphia's own header
+  reader — and their line items are read. Each is marked **PASS**, **REJECT** or
+  **MANUAL REVIEW** by the shared evaluation matrix over the description, header
+  and line items. Philadelphia's line-item hint and its settling of the undecided
+  are left out: COMMBUYS lists almost every bid as one "1.0 EA" item, which proves
+  nothing. The Excel is one sheet with a Line Items, Decision and Reason column
+  (REJECT rows red, MANUAL REVIEW yellow); a bid whose page could not be read is
+  MANUAL REVIEW, never a silent pass.
 - **SAM.gov** — searches active solicitations by updated-date range and NAICS
   code, extracts each notice with its attachments, and scores every bid through
   the evaluation matrix. Attachments are read for their text, then deleted. No

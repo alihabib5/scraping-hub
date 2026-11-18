@@ -16,6 +16,8 @@ from app.scrapers.commbuys.models import EXCEL_COLUMNS, CommbuysBid, CommbuysRun
 
 logger = logging.getLogger(__name__)
 
+_DB_COLUMNS = set(CommbuysBid.__table__.columns.keys())  # Line Items lives in raw_data
+
 
 def _parse_dt(value: Any) -> datetime | None:
     try:
@@ -64,8 +66,10 @@ def save_bids(run: dict[str, Any], records: list[dict[str, Any]]) -> int:
             if record["bid_number"] in seen:
                 continue
             seen.add(record["bid_number"])
-            values = {attr: (record.get(attr) or None) for attr, _ in EXCEL_COLUMNS}
-            values.update(run_id=run["run_id"], raw_data=record.get("raw") or {})
+            values = {attr: (record.get(attr) or None) for attr, _ in EXCEL_COLUMNS if attr in _DB_COLUMNS}
+            raw = {**(record.get("raw") or {}), "header": record.get("extra_header_data") or {},
+                   "line_items": record.get("item_details") or ""}
+            values.update(run_id=run["run_id"], raw_data=raw)
             stmt = pg_insert(CommbuysBid).values(**values).on_conflict_do_update(
                 constraint="uq_commbuys_run_bid",
                 set_={k: v for k, v in values.items() if k not in ("run_id", "bid_number")},
