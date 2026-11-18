@@ -163,7 +163,7 @@ const NO_DOWNLOAD = new Set(["naics", "caleprocure", "evalconfig"]);
  * button label, so when it drifts the endpoint quietly serves a .xlsx while the
  * whole UI still says ZIP.
  */
-const EXCEL_ONLY = new Set(["sam", "septa", "ridemetro", "unison", "emma", "txsmartbuy"]);
+const EXCEL_ONLY = new Set(["sam", "septa", "ridemetro", "unison", "emma", "txsmartbuy", "opengov"]);
 
 /**
  * Portals whose archive keeps its bid documents in their own subtree, so those

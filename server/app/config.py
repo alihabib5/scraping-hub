@@ -158,6 +158,12 @@ class Settings(BaseSettings):
     emma_username: str = ""
     emma_password: str = ""
 
+    # OpenGov Procurement — vendor login (email, then password on a second step),
+    # then Network -> Current Opportunities. Credentials live in server/.env.
+    opengov_email: str = ""
+    opengov_password: str = ""
+    opengov_login_url: str = "https://procurement.opengov.com/login"
+
     # Unison Marketplace — the vendored engine (app/scrapers/unison/engine/) reads
     # these straight from os.environ via its own load_dotenv(); declared here too
     # so the .env keys are documented in one place, and so the run's credential

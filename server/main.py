@@ -14,6 +14,7 @@ from app.scrapers.myflorida.router import router as myflorida_router
 from app.scrapers.myflorida.sweep.router import router as myflorida_sweep_router
 from app.scrapers.naics.router import router as naics_router
 from app.scrapers.northdakota.router import router as northdakota_router
+from app.scrapers.opengov.router import router as opengov_router
 from app.scrapers.ridemetro.router import router as ridemetro_router
 from app.scrapers.sam.router import router as sam_router
 from app.scrapers.philadelphia.router import router as philadelphia_router
@@ -63,6 +64,7 @@ app.include_router(septa_router)
 app.include_router(caleprocure_router)
 app.include_router(emma_router)
 app.include_router(philadelphia_router)
+app.include_router(opengov_router)
 app.include_router(evalconfig_router)
 app.include_router(sam_router)
 app.include_router(unison_router)
@@ -77,6 +79,6 @@ def health() -> dict:
         "service": "scraping-hub",
         "scrapers": [
             "myflorida", "ridemetro", "bidnet", "wisconsin", "txsmartbuy", "northdakota",
-            "septa", "caleprocure", "emma", "philadelphia", "sam", "unison", "naics",
+            "septa", "caleprocure", "emma", "philadelphia", "sam", "unison", "naics", "opengov",
         ],
     }

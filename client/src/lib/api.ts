@@ -13,7 +13,8 @@ export type Portal =
   | "naics"
   | "caleprocure"
   | "emma"
-  | "philadelphia";
+  | "philadelphia"
+  | "opengov";
 
 export interface CommodityCode {
   code: string;
@@ -129,6 +130,12 @@ export interface BidResult {
   award_status?: string;
   procurement_officer?: string;
   matched_filters?: string;
+  // OpenGov Procurement (title/status/detail_url are the shared fields above)
+  project_id?: string;
+  organization?: string;
+  state?: string;
+  release_date?: string;
+  due_date?: string;
   // shared, but only from the flows that download documents per bid — optional
   // because the sweep does not.
   documents?: string[];
@@ -1098,6 +1105,19 @@ export function startPhiladelphiaScrape(
     method: "POST",
     body: JSON.stringify(filters ?? {}),
   });
+}
+
+// -- OpenGov Procurement -----------------------------------------------------
+
+/**
+ * Start a run on OpenGov Procurement: sign in as a vendor, open Network, read
+ * every Current Opportunity (and its detail page for the Project ID), and
+ * deliver one spreadsheet.
+ */
+export function startOpenGovScrape(
+  livePreview = false,
+): Promise<{ run_id: string; folder: string }> {
+  return request(`/opengov/scrape${livePreviewQuery(livePreview)}`, { method: "POST" });
 }
 
 // -- shared ------------------------------------------------------------------
