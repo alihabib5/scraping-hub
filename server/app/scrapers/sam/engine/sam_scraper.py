@@ -119,6 +119,12 @@ except ImportError:
 # Resolve the directory this file lives in (server/sam/)
 _SAM_DIR = Path(__file__).resolve().parent
 
+# The installed app sets SCRAPING_HUB_DATA_DIR (C:\ProgramData\Scraping Hub) because
+# it cannot write next to its code in Program Files. Read straight from the
+# environment, not app.config: this engine also runs standalone.
+_DATA_DIR = os.environ.get("SCRAPING_HUB_DATA_DIR", "")
+_TEMP_DOCS_ROOT = Path(_DATA_DIR) / "sam_temp_docs" if _DATA_DIR else _SAM_DIR / "temp_docs"
+
 
 # ---------------------------------------------------------------------------
 # Bootstrap logging from config.yml before basicConfig is called
@@ -138,6 +144,8 @@ def _get_sam_log_config() -> dict:
 
 _log_cfg = _get_sam_log_config()
 _log_file = _log_cfg.get("log_file", "logs/sam_scraper.log")
+if _DATA_DIR:
+    _log_file = str(Path(_DATA_DIR) / "logs" / Path(_log_file).name)
 os.makedirs(os.path.dirname(_log_file) or ".", exist_ok=True)
 
 logging.basicConfig(
@@ -279,7 +287,7 @@ class SAMGovScraper:
         # them apart. `self.run_id` is set by the hub's runner (assigned in
         # __init__ before this method runs); a standalone run falls back to the
         # object's id, which is equally unique in-process.
-        self._temp_docs_dir = _SAM_DIR / "temp_docs" / str(self.run_id or f"local-{id(self)}")
+        self._temp_docs_dir = _TEMP_DOCS_ROOT / str(self.run_id or f"local-{id(self)}")
         self._temp_docs_dir.mkdir(parents=True, exist_ok=True)
 
         # Convenience shortcuts

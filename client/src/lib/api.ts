@@ -6,6 +6,7 @@ export type Portal =
   | "bidnet"
   | "wisconsin"
   | "txsmartbuy"
+  | "commbuys"
   | "northdakota"
   | "septa"
   | "sam"
@@ -62,6 +63,14 @@ export interface BidResult {
   agency_number?: string;
   posting_date?: string;
   nigp_codes?: string;
+  // COMMBUYS (bid_number, description, buyer and detail_url are shared fields).
+  // `decision` is PASS or REJECT; `decision_reason` says why.
+  organization?: string;
+  alternate_id?: string;
+  purchase_method?: string;
+  opening_date?: string;
+  available_date?: string;
+  decision_reason?: string;
   // Wisconsin
   event_number?: string;
   solicitation_reference?: string;
@@ -227,6 +236,8 @@ export function getJobLogs(runId: string, after = 0): Promise<{ lines: JobLogLin
 
 export interface RunStatus {
   run_id: string;
+  /** The employee signed in to the Windows app when the run started; absent in development. */
+  started_by?: string | null;
   // The sweep runs under its own key rather than a `Portal` — see the sweep
   // section below for why it isn't one.
   scraper?: Portal | typeof SWEEP_SCRAPER;
@@ -816,6 +827,28 @@ export function startTxSmartBuyScrape(
   livePreview = false,
 ): Promise<{ run_id: string; search: string; folder: string }> {
   return request(`/txsmartbuy/scrape${livePreviewQuery(livePreview)}`, {
+    method: "POST",
+    body: JSON.stringify(criteria),
+  });
+}
+
+// -- COMMBUYS (Massachusetts) -----------------------------------------------
+
+/** The Available Date range (YYYY-MM-DD, inclusive); both blank = every open bid. */
+export interface CommbuysCriteria {
+  available_from: string;
+  available_to: string;
+}
+
+export function getCommbuysFilters(): Promise<{ credentials_set: boolean }> {
+  return request("/commbuys/filters");
+}
+
+export function startCommbuysScrape(
+  criteria: CommbuysCriteria,
+  livePreview = false,
+): Promise<{ run_id: string; search: string; folder: string }> {
+  return request(`/commbuys/scrape${livePreviewQuery(livePreview)}`, {
     method: "POST",
     body: JSON.stringify(criteria),
   });

@@ -1,13 +1,21 @@
+import os
 import tempfile
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SERVER_ROOT = Path(__file__).resolve().parent.parent
+
+# Where the installed Windows app keeps what it writes: C:\ProgramData\Scraping Hub,
+# because Program Files is read-only. Unset in development, and then every file
+# stays exactly where it always was. (Archives, documents, the work dir and the
+# ND profile are settings of their own; the installer points those here too.)
+DATA_DIR = os.environ.get("SCRAPING_HUB_DATA_DIR", "")
+
 # The one .env every loader in the project reads: pydantic-settings below, and
 # app/core/credentials.py, which re-reads it literally to confirm a credential
 # survived the parse.
-ENV_FILE = SERVER_ROOT / ".env"
+ENV_FILE = Path(DATA_DIR) / ".env" if DATA_DIR else SERVER_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -91,6 +99,11 @@ class Settings(BaseSettings):
 
     # Texas SmartBuy ESBD (Electronic State Business Daily), Solicitations tab. No login.
     txsmartbuy_esbd_url: str = "https://www.txsmartbuy.gov/esbd"
+
+    # COMMBUYS (Massachusetts) — supplier login, then the open-bids list.
+    commbuys_username: str = ""
+    commbuys_password: str = ""
+    commbuys_login_url: str = "https://www.commbuys.com/bso/view/login/login.xhtml"
 
     # North Dakota (ND Buys / Ivalua) — supplier login via ND OAuth (Azure AD B2C).
     northdakota_username: str = ""

@@ -55,9 +55,31 @@ TRANSIENT_NET_ERRORS = (
     "err_socket_not_connected",
     "err_address_unreachable",
     "err_network_changed",
+    # The page took longer than the page-load limit (seen on EMMA's sign-in page,
+    # 17 Nov): the site was slow, not gone, and the next load usually works.
+    "timed out receiving message from renderer",
 )
 NAVIGATE_ATTEMPTS = 4      # total tries before giving up
 NAVIGATE_BACKOFF = 2.0     # seconds, doubled after each failed attempt
+
+
+class _DriverPoolNoise(logging.Filter):
+    """Drop urllib3's "Connection pool is full, discarding connection: localhost".
+
+    Selenium talks to chromedriver over a one-connection pool. While the Live
+    Preview modal is open its screenshot requests reach the same driver as the
+    scrape, so two calls overlap: both succeed, and urllib3 closes the spare
+    connection with this warning. Nothing failed, so it is noise in the run log.
+    Only the driver's own host is filtered; the same warning for a website stays.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        return not (message.startswith("Connection pool is full")
+                    and ("connection: localhost." in message or "connection: 127.0.0.1." in message))
+
+
+logging.getLogger("urllib3.connectionpool").addFilter(_DriverPoolNoise())
 
 
 class StopRequested(Exception):
@@ -89,6 +111,11 @@ def _clear_stale_wdm_locks(max_age: float = 300) -> None:
                 logger.warning("removed stale webdriver-manager lock %s", lock)
     except OSError:  # noqa: PERF203 — lock cleanup is best-effort
         pass
+
+
+def _in_progress(f: Path) -> bool:
+    """Is `f` a download Chrome is still writing (see `wait_for_download`)?"""
+    return f.suffix in (".crdownload", ".tmp") or f.name.startswith(".com.google.Chrome.")
 
 
 def _resolve_chromedriver() -> str:
@@ -163,6 +190,13 @@ class BaseScraper:
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-background-networking")
         options.add_argument("--disable-default-apps")
+        # Prevent Windows from throttling / suspending the renderer when the
+        # Chrome window is not in the foreground (which is always, in headless
+        # mode). Without these, the renderer can freeze for >60 s and trigger
+        # "Timed out receiving message from renderer" — a timeout that looks
+        # like a crash but is really just a sleeping process.
+        options.add_argument("--disable-renderer-backgrounding")
+        options.add_argument("--disable-backgrounding-occluded-windows")
         # Resolve hostnames over DNS-over-HTTPS rather than through the machine's
         # resolver, which on some networks answers whole TLDs (.app, .dev) with an
         # empty record set and breaks a run with net::ERR_NAME_NOT_RESOLVED.
@@ -292,6 +326,11 @@ class BaseScraper:
 
         host = urlparse(url).hostname or url
         detail = (getattr(last_exc, "msg", None) or str(last_exc)).strip().splitlines()[0]
+        if "renderer" in detail.lower():
+            raise WebDriverException(
+                f"{host} did not finish loading after {attempts} attempts — {detail}. "
+                f"The site is responding too slowly right now; start the run again later."
+            )
         raise WebDriverException(
             f"Could not reach {host} after {attempts} attempts — {detail}. "
             f"This is a network/DNS problem rather than a portal change: check "
@@ -316,6 +355,7 @@ class BaseScraper:
         "session deleted because of page crash",
         "disconnected: not connected to devtools",
         "unable to connect to renderer",
+        "timed out receiving message from renderer",
     )
 
     @classmethod
@@ -526,9 +566,10 @@ class BaseScraper:
     ) -> Path:
         """Wait for a new file to fully land in the staging download dir.
 
-        Chrome marks an in-progress download with a `.crdownload` suffix or, on
+        Chrome marks an in-progress download with a `.crdownload` suffix, on
+        Windows first a `<guid>.tmp` name (seen on COMMBUYS's Excel export), or, on
         Linux, a hidden `.com.google.Chrome.XXXXXX` temp name — a file is only
-        finished once neither pattern is present.
+        finished once none of these is present.
 
         `ignore` is what was already staged before the click. Pass it when
         downloading several files in a row: without it this returns the newest
@@ -541,15 +582,10 @@ class BaseScraper:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             self.raise_if_stopped()  # don't keep waiting on a download the user cancelled
-            partial = [
-                f for f in self.download_dir.iterdir()
-                if f.is_file() and (f.suffix == ".crdownload" or f.name.startswith(".com.google.Chrome."))
-            ]
+            partial = [f for f in self.download_dir.iterdir() if f.is_file() and _in_progress(f)]
             done = [
                 f for f in self.download_dir.iterdir()
-                if f.is_file() and f.suffix != ".crdownload"
-                and not f.name.startswith(".com.google.Chrome.")
-                and f not in ignore
+                if f.is_file() and not _in_progress(f) and f not in ignore
             ]
             if done and not partial:
                 return max(done, key=lambda f: f.stat().st_mtime)

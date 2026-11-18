@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import settings
+from app.core.accounts import current_user
 from app.core.filenames import sanitize_filename  # noqa: F401 — re-exported for scrapers
 
 logger = logging.getLogger(__name__)
@@ -146,6 +147,8 @@ def create_run(scraper: str, folder: Path, fields: dict[str, Any] | None = None)
         "status": "pending",
         "step": "queued",
         "started_at": datetime.now().isoformat(),
+        # The signed-in employee (Windows app); None in development.
+        "started_by": current_user.get(),
         "finished_at": None,
         "folder": str(folder),
         "bids_found": 0,

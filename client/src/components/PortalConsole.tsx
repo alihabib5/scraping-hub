@@ -14,6 +14,7 @@ import SamPanel from "@/components/SamPanel";
 import SeptaPanel from "@/components/SeptaPanel";
 import UnisonPanel from "@/components/UnisonPanel";
 import TxSmartBuyPanel from "@/components/TxSmartBuyPanel";
+import CommbuysPanel from "@/components/CommbuysPanel";
 import WisconsinPanel from "@/components/WisconsinPanel";
 import type { Portal } from "@/lib/api";
 import { portalMeta, type PortalMeta } from "@/lib/portals";
@@ -28,6 +29,7 @@ export default function PortalConsole({ portal }: { portal: Portal }) {
       {portal === "bidnet" && <BidnetPanel />}
       {portal === "wisconsin" && <WisconsinPanel />}
       {portal === "txsmartbuy" && <TxSmartBuyPanel />}
+      {portal === "commbuys" && <CommbuysPanel />}
       {portal === "northdakota" && <NorthDakotaPanel />}
       {portal === "septa" && <SeptaPanel />}
       {portal === "sam" && <SamPanel />}

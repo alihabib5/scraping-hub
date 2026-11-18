@@ -60,7 +60,7 @@ DOC_PORTALS = {"myflorida", "myflorida_sweep", "bidnet", "northdakota"}
 # attachments, and the client wanted the bids without the paperwork. It now
 # downloads nothing at all — its detail pages are read for the header, the line
 # items and the *count* of documents published, all of which are columns.
-EXCEL_ONLY_PORTALS = {"sam", "septa", "ridemetro", "unison", "emma", "philadelphia", "txsmartbuy", "opengov"}
+EXCEL_ONLY_PORTALS = {"sam", "septa", "ridemetro", "unison", "emma", "philadelphia", "txsmartbuy", "commbuys", "opengov"}
 
 
 def is_excel_only(run: dict[str, Any]) -> bool:
@@ -79,7 +79,8 @@ def is_excel_only(run: dict[str, Any]) -> bool:
 # is downloaded from the portal itself and merged on disk (run["excel_path"]).
 _GENERATOR_PORTALS = {
     "septa", "wisconsin", "ridemetro", "northdakota", "sam", "unison", "bidnet",
-    "myflorida_sweep", "emma", "philadelphia", "txsmartbuy", "opengov",
+    "myflorida_sweep", "emma", "philadelphia", "txsmartbuy", "commbuys","opengov"
+   
 }
 
 # Where a portal's export module lives, when it is not `app.scrapers.<key>`.
@@ -116,6 +117,7 @@ def excel_name(run: dict[str, Any]) -> str:
         "septa": f"Septa_({search or 'all open quotes'})",
         "wisconsin": f"Wisconsin_({search or 'all current solicitations'})",
         "txsmartbuy": f"TxSmartBuy_({search or 'all solicitations'})",
+        "commbuys": f"COMMBUYS_({search or 'all open bids'})",
         "sam": f"SAM_({search or 'all active solicitations'})",
         "unison": f"Unison_({(run.get('filter_by') or 'all requests').strip()}{day})",
         "ridemetro": f"EUNA_BONFIRE_Bids ({run.get('label') or run['run_id']})",

@@ -87,6 +87,7 @@ function runSubtitle(run: RunStatusData): string {
   if (run.scraper === "unison") return "Unison Marketplace";
   if (run.scraper === "naics") return "NAICS refresh";
   if (run.scraper === "txsmartbuy") return run.search && run.search !== "all solicitations" ? run.search : "Texas SmartBuy";
+  if (run.scraper === "commbuys") return run.search && run.search !== "all open bids" ? run.search : "COMMBUYS";
   return "";
 }
 

@@ -121,6 +121,7 @@ export default function RunHistory({ meta }: { meta: PortalMeta }) {
               </td>
               <td className="tabular whitespace-nowrap px-4 py-3 text-xs text-ink-600">
                 {formatTimestamp(run.started_at)}
+                {run.started_by && <span className="block text-ink-400">by {run.started_by}</span>}
               </td>
               <td className="tabular whitespace-nowrap px-4 py-3 text-xs text-ink-600">{formatDuration(run)}</td>
               <td className="max-w-xs truncate px-4 py-3 text-sm text-ink-700" title={runTarget(run)}>

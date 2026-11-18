@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import ActiveJobs from "@/components/ActiveJobs";
 import PortalPanelHost from "@/components/PortalPanelHost";
 import SessionEngine from "@/components/SessionEngine";
+import UpdateCredentialsButton from "@/components/UpdateCredentialsButton";
 
 import Logo from "@/components/Logo";
 import PortalIcon from "@/components/PortalIcon";
@@ -84,6 +85,8 @@ export default function ConsoleShell({ children }: { children: React.ReactNode }
             </span>
             <span className="whitespace-nowrap text-xs font-medium text-ink-600">{PORTALS.length} sources</span>
           </div>
+
+          <UpdateCredentialsButton />
 
           <LinkButton href={apiDocsUrl()} target="_blank" rel="noopener noreferrer" size="sm">
             <span className="hidden sm:inline">API docs</span>
