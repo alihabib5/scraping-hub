@@ -18,6 +18,14 @@ from app.core import accounts, run_manager  # noqa: E402
 from main import app  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _own_cache_and_no_panel(monkeypatch, tmp_path):
+    """Remembered sign-ins go to a throwaway file, and no test reaches a real account server."""
+    monkeypatch.setattr(accounts, "CACHE_FILE", tmp_path / "accounts_cache.json")
+    monkeypatch.delenv(accounts.URL_SETTING, raising=False)
+    monkeypatch.delenv(accounts.KEY_SETTING, raising=False)
+
+
 @pytest.fixture
 def two_employees(monkeypatch):
     monkeypatch.setenv(accounts.SETTING, json.dumps({
@@ -35,7 +43,7 @@ def test_only_the_right_password_signs_in(two_employees):
 
 def test_login_endpoint(two_employees):
     client = TestClient(app)
-    assert client.get("/auth/status").json() == {"accounts": 2}
+    assert client.get("/auth/status").json() == {"accounts": 2, "panel": False}
     ok = client.post("/auth/login", json={"username": "omar", "password": "battery staple"})
     assert ok.status_code == 200 and ok.json() == {"username": "omar", "name": "Omar Ali"}
     assert client.post("/auth/login", json={"username": "omar", "password": "nope"}).status_code == 401
@@ -43,7 +51,7 @@ def test_login_endpoint(two_employees):
 
 def test_no_accounts_means_nobody_signs_in(monkeypatch):
     monkeypatch.delenv(accounts.SETTING, raising=False)
-    assert TestClient(app).get("/auth/status").json() == {"accounts": 0}
+    assert TestClient(app).get("/auth/status").json() == {"accounts": 0, "panel": False}
     assert accounts.verify("sara", "correct horse") is None
 
 
@@ -70,3 +78,114 @@ def test_make_credentials_reads_the_accounts_csv(tmp_path):
         csv.write_text("username,name,password\n" + bad, encoding="utf-8")
         with pytest.raises(SystemExit):
             make_credentials.accounts_from_csv(csv)
+
+
+class Reply:
+    def __init__(self, status_code, body):
+        self.status_code, self._body = status_code, body
+
+    def json(self):
+        return self._body
+
+
+class FakePanel:
+    """The Vercel panel's /api/login and /api/signup, as the engine sees them."""
+
+    def __init__(self):
+        self.accounts = {}  # email -> {"name", "password", "approved"}
+        self.down = False
+        self.keys = []
+
+    def post(self, url, json, timeout, headers):
+        self.keys.append(headers.get("X-Hub-Key"))
+        if self.down:
+            raise accounts.requests.ConnectionError("no internet")
+        if url.endswith("/api/signup"):
+            email = json["email"].strip().lower()
+            if email in self.accounts:
+                return Reply(409, {"detail": "An account with this email already exists or is waiting for approval."})
+            self.accounts[email] = {"name": json["name"], "password": json["password"], "approved": False}
+            return Reply(201, {"email": email, "status": "pending"})
+        account = self.accounts.get(json["email"])
+        if not account or account["password"] != json["password"]:
+            return Reply(401, {"detail": "Wrong email or password"})
+        if not account["approved"]:
+            return Reply(409, {"detail": "This account is waiting for an administrator to approve it."})
+        return Reply(200, {"email": json["email"], "name": account["name"]})
+
+
+@pytest.fixture
+def panel(monkeypatch):
+    monkeypatch.setenv(accounts.URL_SETTING, "https://hub-admin.example.vercel.app/")
+    monkeypatch.setenv(accounts.KEY_SETTING, "the-app-key")
+    fake = FakePanel()
+    monkeypatch.setattr(accounts.requests, "post", fake.post)
+    return fake
+
+
+def _login(client, email="nadia@fedpoint.us", password="window frame"):
+    return client.post("/auth/login", json={"username": email, "password": password})
+
+
+def test_a_sign_up_waits_for_approval_then_signs_in(panel):
+    client = TestClient(app)
+    made = client.post("/auth/signup", json={"name": "Nadia Rahman", "email": "Nadia@FedPoint.us", "password": "window frame"})
+    assert made.status_code == 201 and made.json()["status"] == "pending"
+    waiting = _login(client)
+    assert waiting.status_code == 403 and "waiting" in waiting.json()["detail"]
+    assert not accounts.CACHE_FILE.exists()  # nothing remembered before approval
+
+    panel.accounts["nadia@fedpoint.us"]["approved"] = True  # an admin approves it on Vercel
+    assert _login(client, email="NADIA@fedpoint.us").json() == {"username": "nadia@fedpoint.us", "name": "Nadia Rahman"}
+    assert "window frame" not in accounts.CACHE_FILE.read_text(encoding="utf-8")  # only a hash is remembered
+    assert set(panel.keys) == {"the-app-key"}  # every call carries the app's key
+    assert client.get("/auth/status").json() == {"accounts": 1, "panel": True}
+
+
+def test_offline_a_remembered_account_still_signs_in(panel):
+    client = TestClient(app)
+    panel.accounts["nadia@fedpoint.us"] = {"name": "Nadia Rahman", "password": "window frame", "approved": True}
+    assert _login(client).status_code == 200
+    panel.down = True
+    assert _login(client).json()["name"] == "Nadia Rahman"
+    assert _login(client, password="wrong one").status_code == 503  # offline, the cache never accepts a wrong password
+    never = _login(client, email="omar@fedpoint.us")
+    assert never.status_code == 503 and "internet" in never.json()["detail"]
+
+
+def test_a_removed_account_is_forgotten_the_next_time_the_pc_is_online(panel):
+    client = TestClient(app)
+    panel.accounts["nadia@fedpoint.us"] = {"name": "Nadia Rahman", "password": "window frame", "approved": True}
+    _login(client)
+    del panel.accounts["nadia@fedpoint.us"]  # an admin removes her
+    assert _login(client).status_code == 401
+    panel.down = True
+    assert _login(client).status_code == 503  # and offline she is no longer remembered either
+
+
+def test_sign_up_problems_are_passed_on_in_words(panel):
+    client = TestClient(app)
+    body = {"name": "Nadia Rahman", "email": "nadia@fedpoint.us", "password": "window frame"}
+    assert client.post("/auth/signup", json=body).status_code == 201
+    again = client.post("/auth/signup", json=body)
+    assert again.status_code == 409 and "already exists" in again.json()["detail"]
+    panel.down = True
+    offline = client.post("/auth/signup", json={**body, "email": "omar@fedpoint.us"})
+    assert offline.status_code == 503 and "internet" in offline.json()["detail"]
+
+
+def test_without_the_panel_only_issued_accounts_work(two_employees):
+    client = TestClient(app)
+    assert client.post("/auth/signup", json={"name": "N R", "email": "n@x.com", "password": "window frame"}).status_code == 503
+    assert _login(client, email="sara", password="correct horse").json()["name"] == "Sara Khan"
+    assert _login(client).status_code == 401
+
+
+def test_an_issued_account_needs_no_panel(two_employees, panel):
+    panel.down = True
+    assert _login(TestClient(app), email="omar", password="battery staple").json()["name"] == "Omar Ali"
+
+
+def test_an_email_identifies_the_runner():
+    assert accounts.USERNAME.match("nadia@fedpoint.us") and accounts.USERNAME.match("sara")
+    assert not accounts.USERNAME.match("<script>@x.com")

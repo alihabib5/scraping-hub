@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "C:\\projects\\scraping-hub\\desktop\\signin.html"
+        ],
+        "createdAt": "2026-11-16T19:23:14.937Z",
+        "reason": "agent: matches the product's existing palette - desktop/loading.html and main.js window backgroundColor use #faf8f3; console paper token is #faf9f6 (client/src/app/globals.css)"
+      }
+    ]
+  }
+}
