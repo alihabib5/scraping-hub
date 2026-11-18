@@ -9,6 +9,7 @@ import SamResults from "@/components/SamResults";
 import SeptaResults from "@/components/SeptaResults";
 import UnisonResults from "@/components/UnisonResults";
 import TxSmartBuyResults from "@/components/TxSmartBuyResults";
+import CommbuysResults from "@/components/CommbuysResults";
 import WisconsinResults from "@/components/WisconsinResults";
 import type { BidResult, Portal } from "@/lib/api";
 
@@ -28,6 +29,8 @@ export default function PortalResults({ portal, bids }: { portal: Portal; bids: 
       return <WisconsinResults bids={bids} />;
     case "txsmartbuy":
       return <TxSmartBuyResults bids={bids} />;
+    case "commbuys":
+      return <CommbuysResults bids={bids} />;
     case "northdakota":
       return <NorthDakotaResults bids={bids} />;
     case "septa":

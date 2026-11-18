@@ -65,6 +65,17 @@ export default function PortalIcon({ name, className = "h-5 w-5" }: { name: Port
           <path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6.1L12 16.6l-5.4 3 1.2-6.1-4.5-4.2 6.1-.7L12 3Z" />
         </svg>
       );
+    case "lighthouse":
+      // A New England lighthouse: Massachusetts.
+      return (
+        <svg {...common}>
+          <path d="M10 6.5h4l1.5 14h-7L10 6.5Z" />
+          <path d="M9.5 6.5h5M12 3.5v3" />
+          <path d="M9.3 11.5h5.4M8.8 16h6.4" />
+          <path d="M5 4.5l3 2M19 4.5l-3 2" />
+          <path d="M5.5 20.5h13" />
+        </svg>
+      );
     case "prairie":
       // Wheat and horizon: North Dakota's northern plains.
       return (

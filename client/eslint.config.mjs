@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The Windows app's static export (SCRAPING_HUB_DESKTOP=1 build).
+    "out-desktop/**",
   ]),
 ]);
 

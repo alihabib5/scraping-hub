@@ -46,14 +46,14 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.config import SERVER_ROOT
+from app.config import DATA_DIR, SERVER_ROOT
 
 logger = logging.getLogger(__name__)
 
 # Discovered-option cache: written by the "refresh filter options" run, read on
 # every GET /bidnet/filters. Kept outside the package's source tree so a redeploy
 # never ships a stale harvest.
-OPTIONS_CACHE = SERVER_ROOT / "data" / "bidnet_filter_options.json"
+OPTIONS_CACHE = (Path(DATA_DIR) if DATA_DIR else SERVER_ROOT / "data") / "bidnet_filter_options.json"
 
 
 # -- section specs ----------------------------------------------------------

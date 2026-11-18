@@ -44,3 +44,12 @@ jsconfig.json
 # Misc
 .DS_Store
 *.log
+
+# Windows installer build output (compiled server, setup .exe)
+installer/build/
+installer/output/
+client/out-desktop/
+installer/credentials.key
+*.shc
+installer/accounts.csv
+desktop/node_modules/

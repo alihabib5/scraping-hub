@@ -25,6 +25,7 @@ export interface PortalMeta {
     | "network"
     | "capitol"
     | "star"
+    | "lighthouse"
     | "prairie"
     | "rail"
     | "federal"
@@ -129,6 +130,23 @@ export const PORTALS: PortalMeta[] = [
       dot: "bg-red-500",
       rail: "bg-red-500",
       wash: "from-red-50",
+    },
+  },
+  {
+    key: "commbuys",
+    label: "COMMBUYS",
+    operator: "Commonwealth of Massachusetts",
+    host: "www.commbuys.com",
+    tagline: "Open bids",
+    description:
+      "Sign in, read every open bid on COMMBUYS, keep the ones made available in your date range, and sort them into Pass and Reject with the company's keyword matrix.",
+    outputs: ["Available Date range", "Pass / Reject", "Excel export"],
+    icon: "lighthouse",
+    accent: {
+      tile: "bg-sky-50 text-sky-600 ring-sky-100",
+      dot: "bg-sky-500",
+      rail: "bg-sky-500",
+      wash: "from-sky-50",
     },
   },
   {

@@ -6,7 +6,7 @@ Selenium / DB / run-tracking infrastructure in `server/app/core/`. A Next.js
 console (`client/`) drives every portal, shows live run status, and downloads
 results.
 
-The console lists thirteen sources, all US: eleven bid portals (MyFlorida also has a
+The console lists fourteen sources, all US: twelve bid portals (MyFlorida also has a
 second, ad-status sweep flow), Cal eProcure (login verification only) and the
 NAICS reference tool. Whatever a portal scrapes, every run ends the same way:
 rows in its own `*_bids` table, a styled Excel generated from that table, and
@@ -95,6 +95,16 @@ a ZIP around a single sheet is a folder to unpack for nothing.
   keyword, solicitation ID, date range or custom dates), clicks Search, then ESBD's
   own **Export to CSV** (capped by ESBD at 20,000 rows); the rows go to the DB and
   download as a styled Excel with a link to each solicitation.
+- **COMMBUYS** (Massachusetts) — supplier login. Signs in, opens the seller home
+  and the open-bids list (`bidList.sda?status=Open&category=all`), reads every
+  page of it, then reads each bid's **Available Date** from its public page (the
+  list does not show it) and keeps the bids inside the console's date range. Every
+  kept bid is marked **PASS**, **REJECT** or **MANUAL REVIEW** by the shared
+  evaluation matrix (the same engine and kill-words as SAM), and the Excel is one
+  sheet with a Decision and Reason column (REJECT rows red, MANUAL REVIEW yellow). The list's own bid link (`bidAck.sda`) acts on
+  the vendor account, so it is never opened. The site's firewall answers plain
+  HTTP clients with an empty `202`, so bid pages are fetched through the
+  signed-in browser.
 - **SAM.gov** — searches active solicitations by updated-date range and NAICS
   code, extracts each notice with its attachments, and scores every bid through
   the evaluation matrix. Attachments are read for their text, then deleted. No
@@ -211,8 +221,9 @@ silent. Each run reports how many it skipped and how many it kept unverified.
 
 It drops bids on BidNet, EMMA, MyFlorida, North Dakota, SAM, SEPTA, Unison and
 Wisconsin. EUNA BONFIRE only **counts** the bids closing within 7 days, without
-dropping them; Philadelphia and Texas SmartBuy do not apply it (Texas SmartBuy
-keeps what ESBD's own export returns for the chosen filters).
+dropping them; Philadelphia, Texas SmartBuy and COMMBUYS do not apply it (Texas
+SmartBuy keeps what ESBD's own export returns for the chosen filters; COMMBUYS
+filters on Available Date instead).
 
 ## Running jobs
 
@@ -259,7 +270,7 @@ cannot disagree about what a run produced:
   original folders, for the document-downloading portals.
 - **A bare `.xlsx`** — for portals whose only output is the spreadsheet
   (`EXCEL_ONLY_PORTALS`: SAM, SEPTA, EUNA BONFIRE, Unison, EMMA, Philadelphia,
-  Texas SmartBuy), and for
+  Texas SmartBuy, COMMBUYS), and for
   individual runs that say so themselves (BidNet's member-agency sweep).
 
 Either way the artifact is:
@@ -353,6 +364,9 @@ Portal-specific extras:
   `POST /txsmartbuy/scrape` takes `agency`, `agency_number`, `status`,
   `class_item_codes`, `keyword`, `solicitation_id`, `date_range`, `start_date`,
   `end_date` — all optional; dates as `yyyy-mm-dd`
+- **COMMBUYS:** `GET /commbuys/filters` (whether the credentials are set);
+  `POST /commbuys/scrape` takes `available_from`, `available_to` — both optional,
+  inclusive, as `yyyy-mm-dd`; `GET /commbuys/bids?decision=PASS|REJECT`
 - **Philadelphia:** `GET /philadelphia/search/fields`
 - **EMMA:** `POST /emma/scrape` takes `keyword`, `status`, `category`,
   `date_from`, `date_to` — all optional; dates as `yyyy-mm-dd` (or the portal's
@@ -407,6 +421,7 @@ Credentials in `server/.env`:
 | EMMA | `EMMA_USERNAME`, `EMMA_PASSWORD` |
 | Cal eProcure | `Cal_ePROCURE_USERNAME`, `Cal_ePROCURE_PASSWORD` |
 | Unison | `UNISON_EMAIL`, `UNISON_PASSWORD` |
+| COMMBUYS | `COMMBUYS_USERNAME`, `COMMBUYS_PASSWORD` |
 | Wisconsin / Texas SmartBuy / SAM / NAICS | none (public) |
 
 EUNA BONFIRE takes one account per run, picked in the console; an account missing
@@ -456,6 +471,7 @@ run-persistence, so an in-flight run survives a restart) plus a `*_runs` /
 | BidNet Direct | `bidnet_runs`, `bidnet_bids`, `bidnet_niches`, `bidnet_niche_keywords` |
 | Wisconsin | `wisconsin_runs`, `wisconsin_bids` |
 | Texas SmartBuy | `txsmartbuy_runs`, `txsmartbuy_bids` |
+| COMMBUYS | `commbuys_runs`, `commbuys_bids` |
 | North Dakota | `northdakota_runs`, `northdakota_bids` |
 | SEPTA | `septa_runs`, `septa_bids`, `septa_open_bids` |
 | SAM.gov | `sam_runs`, `sam_bids` |

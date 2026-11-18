@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core import run_logs, run_manager
+from app.core.accounts import USERNAME, current_user
+from app.core.accounts import router as auth_router
 from app.core.download_router import router as download_router
 from app.db import init_db
 from app.scrapers.bidnet.router import router as bidnet_router
@@ -21,6 +23,7 @@ from app.scrapers.septa.router import router as septa_router
 from app.scrapers.unison.router import router as unison_router
 from app.scrapers.wisconsin.router import router as wisconsin_router
 from app.scrapers.txsmartbuy.router import router as txsmartbuy_router
+from app.scrapers.commbuys.router import router as commbuys_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -42,11 +45,23 @@ def _startup() -> None:
     # frontend polling them sees a terminal status instead of a 404.
     run_manager.load_persisted_runs()
 
+@app.middleware("http")
+async def _signed_in_user(request, call_next):
+    """Tag the request with the employee the desktop app signed in (X-Hub-User)."""
+    user = request.headers.get("x-hub-user", "").strip().lower()
+    token = current_user.set(user if USERNAME.match(user) else None)
+    try:
+        return await call_next(request)
+    finally:
+        current_user.reset(token)
+
+
 app.add_middleware(
     CORSMiddleware,
     # localhost and 127.0.0.1 are distinct origins to the browser, so allow both.
     # Any port is allowed because Next's dev server auto-increments when 4000 is taken.
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    # app://hub is the installed Windows app's window (desktop/main.js).
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?|app://hub",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,6 +73,7 @@ app.include_router(ridemetro_router)
 app.include_router(bidnet_router)
 app.include_router(wisconsin_router)
 app.include_router(txsmartbuy_router)
+app.include_router(commbuys_router)
 app.include_router(northdakota_router)
 app.include_router(septa_router)
 app.include_router(caleprocure_router)
@@ -68,6 +84,7 @@ app.include_router(sam_router)
 app.include_router(unison_router)
 app.include_router(naics_router)
 app.include_router(download_router)
+app.include_router(auth_router)
 
 
 @app.get("/")
@@ -76,7 +93,7 @@ def health() -> dict:
         "status": "ok",
         "service": "scraping-hub",
         "scrapers": [
-            "myflorida", "ridemetro", "bidnet", "wisconsin", "txsmartbuy", "northdakota",
+            "myflorida", "ridemetro", "bidnet", "wisconsin", "txsmartbuy", "commbuys", "northdakota",
             "septa", "caleprocure", "emma", "philadelphia", "sam", "unison", "naics",
         ],
     }
