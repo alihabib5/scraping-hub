@@ -3,6 +3,7 @@
 import BidnetResults from "@/components/BidnetResults";
 import EmmaResults from "@/components/EmmaResults";
 import NorthDakotaResults from "@/components/NorthDakotaResults";
+import OpenGovResults from "@/components/OpenGovResults";
 import ResultsTable from "@/components/ResultsTable";
 import RideMetroResults from "@/components/RideMetroResults";
 import SamResults from "@/components/SamResults";
@@ -41,6 +42,8 @@ export default function PortalResults({ portal, bids }: { portal: Portal; bids: 
       return <UnisonResults bids={bids} />;
     case "naics":
       return null; // NAICS is a reference tool, not a bid list
+    case "opengov":
+      return <OpenGovResults bids={bids} />;
     case "emma":
       return <EmmaResults bids={bids} />;
     case "caleprocure":

@@ -285,6 +285,23 @@ export const PORTALS: PortalMeta[] = [
       wash: "from-indigo-50",
     },
   },
+  {
+    key: "opengov",
+    label: "OpenGov",
+    operator: "OpenGov Procurement",
+    host: "procurement.opengov.com",
+    tagline: "Vendor network opportunities",
+    description:
+      "Sign in to OpenGov Procurement as a vendor, open Network, and read every Current Opportunity — project title, organization, state, status, release and due dates — into the database and one Excel sheet.",
+    outputs: ["Current Opportunities", "Excel export"],
+    icon: "network",
+    accent: {
+      tile: "bg-teal-50 text-teal-600 ring-teal-100",
+      dot: "bg-teal-500",
+      rail: "bg-teal-500",
+      wash: "from-teal-50",
+    },
+  },
 ];
 
 export function portalMeta(key: Portal): PortalMeta {
