@@ -274,8 +274,8 @@ export const PORTALS: PortalMeta[] = [
     host: "procurement.opengov.com",
     tagline: "Vendor network opportunities",
     description:
-      "Sign in to OpenGov Procurement as a vendor, open Network, and read every Current Opportunity — project title, organization, state, status, release and due dates — plus each bid's Project ID from its detail page, into the database and one Excel sheet.",
-    outputs: ["Current Opportunities", "Project ID from detail page", "Excel export"],
+      "Sign in to OpenGov Procurement as a vendor, open Network, and read every Current Opportunity — project title, organization, state, status, release and due dates — into the database and one Excel sheet.",
+    outputs: ["Current Opportunities", "Excel export"],
     icon: "network",
     accent: {
       tile: "bg-teal-50 text-teal-600 ring-teal-100",

@@ -101,7 +101,8 @@ export default function RunStatus({ run }: { run: RunStatusData }) {
   const attachments = runAttachmentsDownloadable(run);
   // An EMMA run limited to a Publish Date range. Scoped to EMMA because SAM runs
   // carry date_from / date_to too, and theirs mean a different date.
-  const emmaRange = run.scraper === "emma" && !!(run.date_from || run.date_to);
+  const emmaRange =
+    (run.scraper === "emma" || run.scraper === "opengov") && !!(run.date_from || run.date_to);
   // Set once EMMA's keyword screen has finished, which is when "Bids found"
   // drops to the passed count.
   const emmaScreened = run.scraper === "emma" && run.bids_keyword_checked !== undefined;
@@ -193,6 +194,7 @@ export default function RunStatus({ run }: { run: RunStatusData }) {
               outside={run.bids_skipped_outside_date_range}
               noDate={run.bids_skipped_no_publish_date}
               stoppedEarly={run.stopped_paging_early}
+              kind={run.scraper === "opengov" ? "release" : "publish"}
             />
           )}
 
@@ -434,25 +436,30 @@ function DateRangeNote({
   outside,
   noDate,
   stoppedEarly,
+  kind = "publish",
 }: {
   from?: string | null;
   to?: string | null;
   outside?: number;
   noDate?: number;
   stoppedEarly?: boolean;
+  /** Which date the range bounds — EMMA's Publish Date or OpenGov's Release Date. */
+  kind?: "publish" | "release";
 }) {
+  const noun = kind === "release" ? "release" : "publish";
+  const verb = kind === "release" ? "released" : "published";
   const range = from && to ? `${from} to ${to}` : from ? `on or after ${from}` : `on or before ${to}`;
   const counted = outside !== undefined || noDate !== undefined;
   return (
     <div className="rounded-lg border border-ink-200 bg-ink-50 p-3.5">
-      <p className="mb-1 text-xs font-semibold text-ink-700">Publish-date range · {range}</p>
+      <p className="mb-1 text-xs font-semibold text-ink-700">{noun === "release" ? "Release" : "Publish"}-date range · {range}</p>
       <p className="text-sm text-ink-600">
-        Only bids published {range} are kept.
+        Only bids {verb} {range} are kept.
         {counted &&
           ((outside ?? 0) > 0
-            ? ` ${outside} published outside it ${outside === 1 ? "was" : "were"} discarded.`
+            ? ` ${outside} {verb} outside it ${outside === 1 ? "was" : "were"} discarded.`
             : " None were outside it.")}
-        {(noDate ?? 0) > 0 ? ` ${noDate} with no readable publish date ${noDate === 1 ? "was" : "were"} discarded.` : ""}
+        {(noDate ?? 0) > 0 ? ` ${noDate} with no readable {noun} date ${noDate === 1 ? "was" : "were"} discarded.` : ""}
         {stoppedEarly ? " Paging stopped early: the rest of the list was published before the range." : ""}
       </p>
     </div>

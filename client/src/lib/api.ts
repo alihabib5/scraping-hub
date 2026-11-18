@@ -131,11 +131,11 @@ export interface BidResult {
   procurement_officer?: string;
   matched_filters?: string;
   // OpenGov Procurement (title/status/detail_url are the shared fields above)
-  project_id?: string;
+  niche_flag?: string | null;
+  niche_flag_reason?: string | null;
   organization?: string;
   state?: string;
   release_date?: string;
-  due_date?: string;
   // shared, but only from the flows that download documents per bid — optional
   // because the sweep does not.
   documents?: string[];
@@ -1109,15 +1109,33 @@ export function startPhiladelphiaScrape(
 
 // -- OpenGov Procurement -----------------------------------------------------
 
+export interface StartOpenGovScrapeOptions {
+  /** Release Date range, ISO yyyy-mm-dd, both ends inclusive. Both blank: every
+   *  current opportunity. `dateFrom` alone runs through today. */
+  dateFrom?: string;
+  dateTo?: string;
+  livePreview?: boolean;
+}
+
 /**
  * Start a run on OpenGov Procurement: sign in as a vendor, open Network, read
- * every Current Opportunity (and its detail page for the Project ID), and
- * deliver one spreadsheet.
+ * every Current Opportunity released inside the range (if one is given), and deliver one spreadsheet.
  */
-export function startOpenGovScrape(
+export function startOpenGovScrape({
+  dateFrom = "",
+  dateTo = "",
   livePreview = false,
-): Promise<{ run_id: string; folder: string }> {
-  return request(`/opengov/scrape${livePreviewQuery(livePreview)}`, { method: "POST" });
+}: StartOpenGovScrapeOptions = {}): Promise<{
+  run_id: string;
+  search: string;
+  folder: string;
+  date_from: string | null;
+  date_to: string | null;
+}> {
+  return request(`/opengov/scrape${livePreviewQuery(livePreview)}`, {
+    method: "POST",
+    body: JSON.stringify({ from_date: dateFrom, to_date: dateTo }),
+  });
 }
 
 // -- shared ------------------------------------------------------------------
