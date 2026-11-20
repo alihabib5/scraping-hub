@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "desktop/signin.html"
+        ],
+        "createdAt": "2026-11-18T21:27:38.712Z",
+        "reason": "incumbent palette: the paper background (#faf8f3) predates this session in signin.html and the Electron window, and matches the console's documented 'warm paper canvas' tokens in client/src/app/globals.css"
+      }
+    ]
+  }
+}

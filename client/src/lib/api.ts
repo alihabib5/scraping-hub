@@ -63,9 +63,8 @@ export interface BidResult {
   agency_number?: string;
   posting_date?: string;
   nigp_codes?: string;
-  // COMMBUYS (bid_number, description, buyer and detail_url are shared fields).
-  // `decision` is PASS or REJECT; `decision_reason` says why.
-  organization?: string;
+  // COMMBUYS (bid_number, description, buyer, organization and detail_url are
+  // shared fields). `decision` is PASS, REJECT or MANUAL REVIEW; `decision_reason` says why.
   alternate_id?: string;
   purchase_method?: string;
   opening_date?: string;

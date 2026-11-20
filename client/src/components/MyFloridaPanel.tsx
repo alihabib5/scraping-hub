@@ -93,11 +93,15 @@ export default function MyFloridaPanel() {
   const current = useMemo(() => categories.find((c) => c.key === selected), [categories, selected]);
 
   // Switching niche starts over with everything in it selected — the user narrows
-  // down from the full list rather than building one up.
-  useEffect(() => {
+  // down from the full list rather than building one up. Reset while rendering
+  // the new niche (React's "adjust state when a value changes"), not in an
+  // effect, so the old niche's selection never shows for a render.
+  const [shownNiche, setShownNiche] = useState(current);
+  if (current !== shownNiche) {
+    setShownNiche(current);
     setSelectedCodes(current?.codes.map((c) => c.code) ?? []);
     setSelectedKeywords(current?.keywords ?? []);
-  }, [current]);
+  }
 
   const handleStart = (livePreview = false) => {
     // The sweep runs on its own endpoint and its own run key, so the session

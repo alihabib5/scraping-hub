@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'self'">
+  <title>Sign in · Scraping Hub</title>
+  <style>
+    :root {
+      --paper: #faf8f3;
+      --card: #ffffff;
+      --ink: #1c2333;
+      --ink-soft: #5b6475;
+      --navy: #0b1f3a;
+      --navy-hover: #16325a;
+      --steel: #325a83;
+      --rule: #e4e0d6;
+      --field: #d6dfe8;
+      --brass: #b8892d;
+      --error: #9b3524;
+      --error-wash: #fbefec;
+      --ok: #1f5e3b;
+      --ok-wash: #ecf5ef;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: grid; justify-items: center; align-content: start; padding: max(24px, 12vh) 24px 24px; /* fixed top: switching tabs must not move the brand */
+      background: var(--paper); color: var(--ink);
+      font: 15px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+      caret-color: var(--brass);
+    }
+    ::selection { background: #ead9b4; color: var(--ink); }
+
+    .panel { width: 380px; }
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .brand svg { flex: none; }
+    .brand h1 { margin: 0; font: 600 21px/1.2 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; letter-spacing: .1px; }
+    .brand p { margin: 2px 0 0; font-size: 13px; color: var(--ink-soft); }
+
+    .card {
+      background: var(--card); border: 1px solid var(--rule); border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(11, 31, 58, .04), 0 12px 32px -12px rgba(11, 31, 58, .14);
+      padding: 6px 28px 26px;
+    }
+
+    [role="tablist"] { display: flex; gap: 22px; border-bottom: 1px solid var(--rule); margin: 0 -28px 22px; padding: 0 28px; }
+    [role="tab"] {
+      font: inherit; font-size: 14px; font-weight: 600; color: var(--ink-soft);
+      background: none; border: 0; padding: 14px 0 12px; margin-bottom: -1px; cursor: pointer;
+      border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+    }
+    [role="tab"]:hover { color: var(--ink); }
+    [role="tab"][aria-selected="true"] { color: var(--navy); border-bottom-color: var(--brass); }
+    [role="tab"]:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 4px; }
+
+    form { display: flex; flex-direction: column; gap: 16px; }
+    form[hidden], [hidden] { display: none !important; }
+    .lede { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 13px; font-weight: 600; color: var(--steel); }
+    .field .hint { font-size: 12.5px; color: var(--ink-soft); }
+    .field .hint.bad { color: var(--error); }
+    input {
+      font: inherit; padding: 10px 12px; border: 1px solid var(--field); border-radius: 8px;
+      background: #fff; color: var(--ink); transition: border-color .15s, box-shadow .15s;
+    }
+    input:hover { border-color: #b9c6d4; }
+    input:focus { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px rgba(184, 137, 45, .22); }
+    input[aria-invalid="true"] { border-color: var(--error); }
+    input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px rgba(155, 53, 36, .18); }
+
+    .primary {
+      font: inherit; font-weight: 600; padding: 11px; margin-top: 4px; border: 0; border-radius: 8px;
+      background: var(--navy); color: #fff; cursor: pointer; transition: background .15s;
+    }
+    .primary:hover:not(:disabled) { background: var(--navy-hover); }
+    .primary:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+    .primary:disabled { opacity: .65; cursor: progress; }
+
+    .link {
+      font: inherit; font-size: 13px; font-weight: 500; color: var(--steel); background: none; border: 0; padding: 0;
+      cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #9fb3c8;
+    }
+    .link:hover { color: var(--navy); text-decoration-color: currentColor; }
+    .link:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 3px; }
+
+    .message { margin: 0; padding: 10px 12px; border-radius: 8px; font-size: 13.5px; }
+    .message.error { background: var(--error-wash); color: var(--error); }
+    .message:empty { display: none; }
+
+    .done { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+    .done h2 { margin: 0; font-size: 16px; font-weight: 600; color: var(--ok); display: flex; align-items: center; gap: 8px; }
+    .done p { margin: 0; font-size: 14px; color: var(--ink-soft); }
+    .done strong { color: var(--ink); font-weight: 600; }
+
+    .setup { border-top: 1px solid var(--rule); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+    .setup p { margin: 0; font-size: 13px; color: var(--ink-soft); }
+
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <header class="brand">
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+        <rect width="40" height="40" rx="10" fill="#0b1f3a"/>
+        <path d="M11 14.5h18M11 20h12M11 25.5h15" stroke="#faf8f3" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="28.5" cy="25.5" r="2.6" fill="#b8892d"/>
+      </svg>
+      <div>
+        <h1>Scraping Hub</h1>
+        <p>Public procurement bids, in one place</p>
+      </div>
+    </header>
+
+    <section class="card">
+      <div role="tablist" aria-label="Account">
+        <button role="tab" id="tab-signin" aria-controls="signin" aria-selected="true">Sign in</button>
+        <button role="tab" id="tab-signup" aria-controls="signup" aria-selected="false" tabindex="-1">Create account</button>
+      </div>
+
+      <form id="signin" role="tabpanel" aria-labelledby="tab-signin" novalidate>
+        <div class="field">
+          <label for="in-email">Email</label>
+          <input id="in-email" type="email" autocomplete="username" spellcheck="false" required autofocus>
+        </div>
+        <div class="field">
+          <label for="in-password">Password</label>
+          <input id="in-password" type="password" autocomplete="current-password" required>
+        </div>
+        <p id="in-error" class="message error" role="alert"></p>
+        <button id="in-submit" class="primary" type="submit">Sign in</button>
+        <div id="setup" class="setup" hidden>
+          <p>No accounts are set up on this PC yet. Choose the credentials file you were sent.</p>
+          <button id="load" class="link" type="button">Choose credentials file…</button>
+        </div>
+      </form>
+
+      <form id="signup" role="tabpanel" aria-labelledby="tab-signup" novalidate hidden>
+        <p class="lede">An administrator approves new accounts before they can sign in.</p>
+        <div class="field">
+          <label for="up-name">Display name</label>
+          <input id="up-name" autocomplete="name" maxlength="60" required>
+        </div>
+        <div class="field">
+          <label for="up-email">Work email</label>
+          <input id="up-email" type="email" autocomplete="email" spellcheck="false" required>
+        </div>
+        <div class="field">
+          <label for="up-password">Password</label>
+          <input id="up-password" type="password" autocomplete="new-password" aria-describedby="up-password-hint" required>
+          <span id="up-password-hint" class="hint">At least 8 characters.</span>
+        </div>
+        <div class="field">
+          <label for="up-confirm">Confirm password</label>
+          <input id="up-confirm" type="password" autocomplete="new-password" aria-describedby="up-confirm-hint" required>
+          <span id="up-confirm-hint" class="hint" aria-live="polite"></span>
+        </div>
+        <p id="up-error" class="message error" role="alert"></p>
+        <button id="up-submit" class="primary" type="submit">Request account</button>
+      </form>
+
+      <div id="requested" class="done" role="status" hidden>
+        <h2>
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 9.2l2.3 2.3 4.7-4.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Request sent
+        </h2>
+        <p>Your account for <strong id="requested-email"></strong> is waiting for an administrator. Once it is approved, sign in with that email and the password you chose.</p>
+        <button id="back" class="primary" type="button">Back to sign in</button>
+      </div>
+    </section>
+  </main>
+  <script src="signin.js"></script>
+</body>
+</html>
