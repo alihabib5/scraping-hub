@@ -22,6 +22,7 @@ from main import app  # noqa: E402
 def _own_cache_and_no_panel(monkeypatch, tmp_path):
     """Remembered sign-ins go to a throwaway file, and no test reaches a real account server."""
     monkeypatch.setattr(accounts, "CACHE_FILE", tmp_path / "accounts_cache.json")
+    monkeypatch.setattr(accounts, "_session", None)
     monkeypatch.delenv(accounts.URL_SETTING, raising=False)
     monkeypatch.delenv(accounts.KEY_SETTING, raising=False)
 
@@ -95,11 +96,16 @@ class FakePanel:
         self.accounts = {}  # email -> {"name", "password", "approved"}
         self.down = False
         self.keys = []
+        self.sessions = []  # (session id, "ping" | "end") as the engine reported them
+        self.opened = 0
 
     def post(self, url, json, timeout, headers):
         self.keys.append(headers.get("X-Hub-Key"))
         if self.down:
             raise accounts.requests.ConnectionError("no internet")
+        if url.endswith("/api/session"):
+            self.sessions.append((json["session_id"], json["action"]))
+            return Reply(200, {"ok": True})
         if url.endswith("/api/signup"):
             email = json["email"].strip().lower()
             if email in self.accounts:
@@ -111,7 +117,8 @@ class FakePanel:
             return Reply(401, {"detail": "Wrong email or password"})
         if not account["approved"]:
             return Reply(409, {"detail": "This account is waiting for an administrator to approve it."})
-        return Reply(200, {"email": json["email"], "name": account["name"]})
+        self.opened += 1
+        return Reply(200, {"email": json["email"], "name": account["name"], "session_id": f"s{self.opened}"})
 
 
 @pytest.fixture
@@ -189,3 +196,43 @@ def test_an_issued_account_needs_no_panel(two_employees, panel):
 def test_an_email_identifies_the_runner():
     assert accounts.USERNAME.match("nadia@fedpoint.us") and accounts.USERNAME.match("sara")
     assert not accounts.USERNAME.match("<script>@x.com")
+
+
+def test_a_sign_in_session_is_checked_in_and_ended(panel):
+    client = TestClient(app)
+    panel.accounts["nadia@fedpoint.us"] = {"name": "Nadia Rahman", "password": "window frame", "approved": True}
+    _login(client)
+    assert client.post("/auth/ping").json() == {"session": True}
+    assert client.post("/auth/logout").json() == {"ok": True}
+    assert panel.sessions == [("s1", "ping"), ("s1", "end")]
+    client.post("/auth/logout")  # signing out twice ends it once
+    assert client.post("/auth/ping").json() == {"session": False}
+    assert panel.sessions == [("s1", "ping"), ("s1", "end")]
+
+
+def test_a_new_sign_in_ends_a_session_left_open(panel):
+    client = TestClient(app)
+    panel.accounts["nadia@fedpoint.us"] = {"name": "Nadia Rahman", "password": "window frame", "approved": True}
+    _login(client)
+    _login(client)  # e.g. the app was killed before it could sign out
+    assert panel.sessions == [("s1", "end")]
+    client.post("/auth/logout")
+    assert panel.sessions == [("s1", "end"), ("s2", "end")]
+
+
+def test_signing_out_never_waits_on_an_unreachable_panel(panel):
+    client = TestClient(app)
+    panel.accounts["nadia@fedpoint.us"] = {"name": "Nadia Rahman", "password": "window frame", "approved": True}
+    _login(client)
+    panel.down = True
+    assert client.post("/auth/ping").status_code == 200
+    assert client.post("/auth/logout").json() == {"ok": True}
+    assert client.post("/auth/ping").json() == {"session": False}
+
+
+def test_an_offline_or_issued_sign_in_opens_no_session(two_employees, panel):
+    client = TestClient(app)
+    assert _login(client, email="omar", password="battery staple").status_code == 200
+    assert client.post("/auth/ping").json() == {"session": False}
+    client.post("/auth/logout")
+    assert panel.sessions == []

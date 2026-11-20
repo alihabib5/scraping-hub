@@ -3,10 +3,18 @@
 The online side of the Windows app's sign-in. Hosted on Vercel, accounts kept in
 Supabase (Postgres).
 
-- **Panel** (`/`): administrators approve or reject the accounts people request
-  on the app's **Create account** screen, and remove accounts that should no
-  longer sign in.
-- **API** (`/api/signup`, `/api/login`): called by each installed app's engine
+- **Dashboard** (sidebar):
+  - **Users** (`/`): everyone who can sign in, with the IP, time and length of
+    their latest session in the Windows app ("Active now" while it is open).
+    Remove someone here.
+  - **Pending Approvals** (`/pending`): accounts requested on the app's
+    **Create account** screen, with the IP and date of the request; Approve or
+    Decline.
+  - **Encryptor** (`/encryptor`): makes the app's `credentials.shc` from a
+    `.env`, the build's `credentials.key` and an optional `accounts.csv`, in the
+    browser — nothing is uploaded. Byte-compatible with
+    `server/app/core/credentials_file.py` (code from the Encrypter project).
+- **API** (`/api/signup`, `/api/login`, `/api/session`): called by each installed app's engine
   (`server/app/core/accounts.py`). Every call must carry the app key
   (`X-Hub-Key`), so only an installed Scraping Hub can use it.
 
@@ -15,7 +23,9 @@ as the engine, so a PC can check a remembered account while offline.
 
 ## Set up (once)
 
-1. **Supabase.** Create a project. In **SQL Editor**, run `schema.sql`. Under
+1. **Supabase.** Create a project. In **SQL Editor**, run `schema.sql`. (A database
+   made from an older `schema.sql`: run `migrations/001_sessions.sql` instead — it
+   adds the sign-up IP and the sessions table, and is safe to run twice.) Under
    **Connect → Connection string**, copy the *Transaction pooler* URI (port
    6543) and put the database password into it.
 2. **Vercel.** New project → import this repository → **Root Directory:

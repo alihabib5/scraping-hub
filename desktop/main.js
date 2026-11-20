@@ -39,6 +39,9 @@ let server = null;
 let win = null;
 // The signed-in employee, { username, name }, until the app closes. Null = sign-in screen.
 let user = null;
+// The account panel's session for that sign-in: checked in every few minutes, ended on sign-out / close.
+const PING_MS = 5 * 60_000;
+let pingTimer = null;
 const SIGNIN_FILE = path.join(__dirname, "signin.html");
 const SIGNIN_URL = pathToFileURL(SIGNIN_FILE).href;
 
@@ -381,6 +384,8 @@ ipcMain.handle("sign-in", async (event, username, password) => {
       return { ok: false, message: typeof detail === "string" ? detail : `Sign-in failed (engine answered ${res.status}).` };
     }
     user = await res.json();
+    clearInterval(pingTimer);
+    pingTimer = setInterval(() => net.fetch(`${API}/auth/ping`, { method: "POST" }).catch(() => {}), PING_MS);
   } catch {
     return { ok: false, message: "The Scraping Hub engine is not answering. Close and reopen Scraping Hub." };
   }
@@ -405,8 +410,18 @@ ipcMain.handle("sign-up", async (event, name, email, password) => {
   }
 });
 
+/** Tell the account panel the session is over. Best effort, never longer than 3 s: closing must not hang on it. */
+async function endPanelSession() {
+  clearInterval(pingTimer);
+  pingTimer = null;
+  if (!user) return;
+  const done = net.fetch(`${API}/auth/logout`, { method: "POST" }).catch(() => {});
+  await Promise.race([done, new Promise((resolve) => setTimeout(resolve, 3000))]);
+}
+
 ipcMain.handle("sign-out", async (event) => {
   if (!fromApp(event)) return;
+  await endPanelSession();
   user = null;
   await win.loadFile(SIGNIN_FILE);
 });
@@ -423,7 +438,16 @@ ipcMain.handle("account-count", async (event) => {
   }
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  if (user && !failed) {
+    // End the panel session while the engine is still up, then quit for real.
+    event.preventDefault();
+    endPanelSession().finally(() => {
+      user = null;
+      app.quit();
+    });
+    return;
+  }
   app.isQuitting = true;
   stopServer();
 });
