@@ -22,6 +22,12 @@ The desktop app sends the signed-in email as X-Hub-User on every request, so
 runs record who started them. Development has no accounts and sends no header:
 nothing changes there.
 
+**Sessions.** A sign-in through the panel opens a session there (its IP and start
+time show on the admin dashboard). This engine keeps its id; the desktop app
+checks in through /auth/ping every few minutes and ends it through /auth/logout
+on sign-out and when the app closes. Both are best effort: a panel that cannot be
+reached never blocks signing out or closing.
+
 Limit: the engine only listens on 127.0.0.1 and trusts that header, so this
 keeps other people at the PC out of the app, not someone scripting the API.
 """
@@ -59,6 +65,8 @@ CACHE_FILE = (Path(DATA_DIR) if DATA_DIR else SERVER_ROOT / "data") / "accounts_
 # Who is signed in for the request being handled; set by main.py's middleware.
 current_user: ContextVar[str | None] = ContextVar("current_user", default=None)
 _lock = threading.Lock()
+# The panel session of whoever is signed in on this PC (one person at a time), or None.
+_session: str | None = None
 
 
 class Unreachable(Exception):
@@ -171,6 +179,7 @@ def status() -> dict:
 
 @router.post("/login")
 def login(body: SignIn) -> dict:
+    global _session
     email = _key(body.username)
     name = verify(email, body.password)
     if name is not None:
@@ -187,8 +196,11 @@ def login(body: SignIn) -> dict:
         raise HTTPException(status_code=503, detail="Can't reach the account server, and this account hasn't signed in "
                                                     "on this PC before. Check the internet connection.") from exc
     if response.status_code == 200:
-        name = response.json()["name"]
+        reply = response.json()
+        name = reply["name"]
         _remember(email, name, body.password)
+        _end_session()  # a previous sign-in on this PC that never signed out
+        _session = reply.get("session_id")
         return {"username": email, "name": name}
     if response.status_code == 409:  # right password, not approved yet
         raise HTTPException(status_code=403, detail=_detail(response) or "This account is waiting for approval.")
@@ -214,3 +226,32 @@ def signup(body: SignUp) -> dict:
         raise HTTPException(status_code=response.status_code, detail=_detail(response))
     logger.error("account panel refused sign-up with %s: %s", response.status_code, _detail(response))
     raise HTTPException(status_code=502, detail="The account server refused the request. Ask an administrator.")
+
+
+def _touch(session: str, action: str) -> None:
+    try:
+        _panel("/api/session", {"session_id": session, "action": action})
+    except Unreachable as exc:
+        logger.info("account panel unreachable, session %s not sent (%s)", action, exc)
+
+
+def _end_session() -> None:
+    global _session
+    session, _session = _session, None
+    if session and panel_configured():
+        _touch(session, "end")
+
+
+@router.post("/ping")
+def ping() -> dict:
+    """The desktop app checking in, so the dashboard knows the session is still open."""
+    if _session and panel_configured():
+        _touch(_session, "ping")
+    return {"session": bool(_session)}
+
+
+@router.post("/logout")
+def logout() -> dict:
+    """Sign-out or app close: ends the panel session, if there is one."""
+    _end_session()
+    return {"ok": True}

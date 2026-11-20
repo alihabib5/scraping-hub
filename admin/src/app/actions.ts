@@ -30,12 +30,12 @@ export async function signOut() {
 
 export async function approveAccount(form: FormData) {
   await approve(String(form.get("email")), await requireAdmin());
-  revalidatePath("/");
+  revalidatePath("/", "layout"); // the sidebar's pending count changes too
 }
 
 export async function removeAccount(form: FormData) {
   const admin = await requireAdmin();
   const email = normalEmail(form.get("email"));
   if (email !== admin) await remove(email); // an admin cannot remove their own account and lock themselves out
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }
