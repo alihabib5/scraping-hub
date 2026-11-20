@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { signOut } from "@/app/actions";
+import Avatar from "@/components/Avatar";
+import Mark from "@/components/Mark";
 
 const icon = "h-[18px] w-[18px] shrink-0";
 const ICONS = {
@@ -27,6 +29,12 @@ const ICONS = {
       <path d="M10 11.75v2" strokeLinecap="round" />
     </svg>
   ),
+  signOut: (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden>
+      <path d="M8 4H5.5A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" strokeLinecap="round" />
+      <path d="M12 6.5 15.5 10 12 13.5M15.5 10H8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
 };
 
 const NAV = [
@@ -35,27 +43,23 @@ const NAV = [
   { href: "/encryptor", label: "Encryptor", icon: ICONS.encryptor },
 ] as const;
 
-/** The dashboard's sidebar; on a narrow screen it becomes a bar across the top. */
+/** The dashboard's navy rail; on a narrow screen it becomes a bar across the top. */
 export default function Sidebar({ admin, name, pending }: { admin: string; name: string; pending: number }) {
   const path = usePathname();
   return (
-    <aside className="flex shrink-0 flex-col border-b border-ink-100 bg-white md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r">
-      <div className="flex items-center gap-3 px-5 pb-4 pt-5 md:pb-6 md:pt-7">
-        <svg width="32" height="32" viewBox="0 0 40 40" aria-hidden className="shrink-0">
-          <rect width="40" height="40" rx="10" fill="#0b1f3a" />
-          <path d="M11 14.5h18M11 20h12M11 25.5h15" stroke="#faf8f3" strokeWidth="2.2" strokeLinecap="round" />
-          <circle cx="28.5" cy="25.5" r="2.6" fill="#b9873c" />
-        </svg>
+    <aside className="flex shrink-0 flex-col bg-ink-900 text-ink-100 md:sticky md:top-0 md:h-screen md:w-[17rem]">
+      <div className="flex items-center gap-3 px-5 pb-4 pt-5 md:px-6 md:pb-8 md:pt-7">
+        <Mark size={34} onDark />
         <div className="min-w-0">
-          <p className="font-display text-[17px] leading-tight text-ink-900">Scraping Hub</p>
-          <p className="text-xs text-ink-500">Administration</p>
+          <p className="font-display text-[18px] leading-tight text-white">Scraping Hub</p>
+          <p className="text-xs text-ink-300">Account administration</p>
         </div>
         <form action={signOut} className="ml-auto md:hidden">
-          <button className="rounded-md px-2 py-1 text-sm font-medium text-ink-600 transition hover:text-ink-900">Sign out</button>
+          <button className="rounded-md px-2 py-1 text-sm font-medium text-ink-200 transition hover:text-white">Sign out</button>
         </form>
       </div>
 
-      <nav aria-label="Dashboard" className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-1 md:flex-col md:overflow-visible md:pb-0">
+      <nav aria-label="Dashboard" className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-1 md:flex-col md:overflow-visible md:px-4 md:pb-0">
         {NAV.map((item) => {
           const active = item.href === "/" ? path === "/" : path.startsWith(item.href);
           return (
@@ -63,14 +67,14 @@ export default function Sidebar({ admin, name, pending }: { admin: string; name:
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
-                active ? "bg-ink-50 font-semibold text-ink-900" : "font-medium text-ink-600 hover:bg-ink-50/60 hover:text-ink-900"
+              className={`group flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition duration-200 ${
+                active ? "bg-white/[0.08] font-semibold text-white" : "font-medium text-ink-200 hover:bg-white/[0.05] hover:text-white"
               }`}
             >
-              <span className={active ? "text-gold-600" : "text-ink-400"}>{item.icon}</span>
+              <span className={active ? "text-gold-400" : "text-ink-300 transition group-hover:text-ink-100"}>{item.icon}</span>
               <span className="whitespace-nowrap">{item.label}</span>
               {item.href === "/pending" && pending > 0 && (
-                <span className="tabular ml-auto rounded-full bg-gold-500 px-2 py-0.5 text-[11px] font-semibold leading-none text-white">
+                <span className="tabular ml-auto rounded-full bg-gold-500 px-2 py-0.5 text-[11px] font-semibold leading-4 text-ink-900">
                   {pending}
                 </span>
               )}
@@ -79,13 +83,19 @@ export default function Sidebar({ admin, name, pending }: { admin: string; name:
         })}
       </nav>
 
-      <div className="hidden border-t border-ink-100 px-5 py-4 md:block">
-        <p className="text-xs font-medium text-ink-400">Signed in as</p>
-        <p className="mt-0.5 truncate text-sm font-semibold text-ink-900">{name}</p>
-        <p className="truncate text-xs text-ink-500" title={admin}>{admin}</p>
-        <form action={signOut} className="mt-3">
-          <button className="rounded-md text-sm font-medium text-ink-600 underline-offset-4 transition hover:text-ink-900 hover:underline">
-            Sign out
+      <div className="mx-4 mb-4 hidden items-center gap-3 rounded-xl bg-white/[0.05] p-3 md:flex">
+        <Avatar name={name} tone="gold" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-white">{name}</p>
+          <p className="truncate text-xs text-ink-300" title={admin}>{admin}</p>
+        </div>
+        <form action={signOut}>
+          <button
+            title="Sign out"
+            aria-label="Sign out"
+            className="rounded-md p-1.5 text-ink-300 transition hover:bg-white/[0.08] hover:text-white"
+          >
+            {ICONS.signOut}
           </button>
         </form>
       </div>
