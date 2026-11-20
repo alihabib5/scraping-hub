@@ -95,3 +95,7 @@ input[type="file"]::file-selector-button { font: inherit; }
 .gen-note {margin: 0; max-width: none; font-size: .82rem; color: #3d4a44;}
 .gen .win-body {padding: 14px;}
 .gen .win-title {flex-wrap: wrap; gap: 2px 12px;}
+.gen-template {display: grid; gap: 8px;}
+.gen-template .gen-key {grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); column-gap: 12px;}
+.gen-field-key {font: 400 .76rem/1.3 Consolas, var(--mono); color: #4a4a4a;}
+.gen-note code {font: 400 .78rem/1 Consolas, var(--mono);}

@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { b64url, decodeKey, encodeKey, fernetEncrypt, generateRawKey, hasWebCrypto, importRawKey } from "@/lib/fernet";
-import { ACCOUNTS_SETTING, accountsFromCsv, credentialsFromEnv, parseDotenv, shc1Encrypt } from "@/lib/shc1";
+import { isSet, templateFields, templateGroups } from "@/lib/envTemplate";
+import { ACCOUNTS_SETTING, accountsFromCsv, parseDotenv, shc1Encrypt } from "@/lib/shc1";
 
-// Copied from the Encrypter project (landing/components/WebGenerator.tsx). Changes for the account panel:
-// accounts.csv is optional when the .env carries the panel settings, and it takes an email column.
+// Copied from the Encrypter project (landing/components/WebGenerator.tsx). Changes for Scraping Hub:
+// its mode is a form that follows server/.env.example (the system default), accounts.csv is optional
+// when the account panel settings are filled in, and accounts.csv takes an email column.
 const MAX_BYTES = 1024 * 1024;
 const PANEL_SETTINGS = ["SCRAPING_HUB_ACCOUNTS_URL", "SCRAPING_HUB_API_KEY"];
 const HWID_RE = /^[0-9a-f]{64}$/i;
@@ -68,6 +70,28 @@ export function WebGenerator() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const hub = format === "hub";
+  const groups = useMemo(() => templateGroups(), []);
+  const blank = () => Object.fromEntries(groups.flatMap((g) => g.fields.map((f) => [f.key, f.initial])));
+  const [form, setForm] = useState<Record<string, string>>(blank);
+  const [envFile, setEnvFile] = useState<File | null>(null);
+  const [ignored, setIgnored] = useState<string[]>([]);
+
+  /** Fill the form from an existing .env: template keys take its values, anything else is listed and left out. */
+  async function fillFrom(f: File | null) {
+    setEnvFile(f);
+    reset();
+    if (!f) return;
+    const fields = templateFields(groups);
+    const loaded = parseDotenv(await f.text());
+    const next = blank();
+    const extra: string[] = [];
+    for (const [k, v] of Object.entries(loaded)) {
+      if (fields.has(k)) next[k] = isSet(fields.get(k), v) ? v : next[k];
+      else if (v) extra.push(k);
+    }
+    setForm(next);
+    setIgnored(extra);
+  }
 
   const reset = () => {
     setError(null);
@@ -150,10 +174,16 @@ export function WebGenerator() {
     };
   }
 
-  async function makeHubCredentials(payload: string): Promise<Result | null> {
-    const { values, skipped } = credentialsFromEnv(parseDotenv(payload));
+  async function makeHubCredentials(): Promise<Result | null> {
+    const fields = templateFields(groups);
+    const values: Record<string, string> = {};
+    const unset: string[] = [];
+    for (const [k, v] of Object.entries(form)) {
+      if (isSet(fields.get(k), v)) values[k] = v.trim();
+      else unset.push(k);
+    }
     if (!Object.keys(values).length) {
-      setError("No credentials found in that config. Each line should look like EMMA_PASSWORD=…");
+      setError("Fill in at least one setting, or load a .env with Fill from a .env file.");
       return null;
     }
     const missingPanel = PANEL_SETTINGS.filter((k) => !values[k]);
@@ -201,7 +231,7 @@ export function WebGenerator() {
         ? `credentials.shc ready: ${settings.length + 1} settings, ${people.length} employee ${people.length === 1 ? "sign-in" : "sign-ins"}`
         : `credentials.shc ready: ${settings.length} settings; sign-in through the account panel`,
       preview: `SHC1 · ${data.length} bytes`,
-      detail: `Settings: ${settings.join(", ")}.${people.length ? ` Sign-ins: ${people.join(", ")}.` : ""}${skipped.length ? ` Left out (set per PC by the installer): ${skipped.join(", ")}.` : ""}`,
+      detail: `Settings: ${settings.join(", ")}.${people.length ? ` Sign-ins: ${people.join(", ")}.` : ""}${unset.length ? ` Not set (left empty): ${unset.join(", ")}.` : ""}${ignored.length ? ` Left out (not in the template, or set per PC): ${ignored.join(", ")}.` : ""}`,
       downloads,
       note:
         keyMode === "new"
@@ -216,11 +246,11 @@ export function WebGenerator() {
       setError("This browser can’t encrypt here. Open the page over https, or use the desktop generator.");
       return;
     }
-    const payload = await readPayload();
+    const payload = hub ? "" : await readPayload();
     if (payload === null) return;
     setBusy(true);
     try {
-      const made = hub ? await makeHubCredentials(payload) : await makeLicense(payload);
+      const made = hub ? await makeHubCredentials() : await makeLicense(payload);
       if (made) setResult(made);
     } catch (exc) {
       setError(`Failed to generate .shc file: ${exc instanceof Error ? exc.message : "unknown error"}`);
@@ -248,6 +278,51 @@ export function WebGenerator() {
           </button>
         </div>
 
+        {hub ? (
+          <>
+            <fieldset className="gen-key">
+              <legend>Fill from a .env file (optional)</legend>
+              <FilePick
+                file={envFile}
+                placeholder="Load current values from server\.env"
+                accept=".env,.txt,text/plain"
+                label="Chosen .env file"
+                onPick={fillFrom}
+              />
+              {ignored.length > 0 && (
+                <p className="gen-note">Left out (not in the template, or set on each PC by the installer): {ignored.join(", ")}.</p>
+              )}
+            </fieldset>
+            <p className="gen-note">
+              The settings below follow <code>server/.env.example</code>. Empty fields are left out of the file.
+            </p>
+            <div className="gen-template">
+              {groups.map((g) => (
+                <fieldset key={g.title + g.fields[0].key} className="gen-key">
+                  <legend>{g.title}</legend>
+                  {g.fields.map((f) => (
+                    <label key={f.key} className="gen-field">
+                      <span className="gen-field-key">{f.key}</span>
+                      <input
+                        className="gen-path mono"
+                        type={f.secret ? "password" : "text"}
+                        value={form[f.key] ?? ""}
+                        onChange={(e) => {
+                          setForm((v) => ({ ...v, [f.key]: e.target.value }));
+                          setResult(null);
+                        }}
+                        spellCheck={false}
+                        autoComplete="off"
+                        placeholder="not set"
+                      />
+                    </label>
+                  ))}
+                </fieldset>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
         <label className="gen-radio">
           <input type="radio" name="gen-mode" checked={mode === "file"} onChange={() => setMode("file")} />
           Option 1: Upload .env / .txt File
@@ -282,6 +357,8 @@ export function WebGenerator() {
             setResult(null);
           }}
         />
+          </>
+        )}
 
         {hub && (
           <fieldset className="gen-key">
