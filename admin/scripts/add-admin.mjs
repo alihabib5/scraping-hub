@@ -1,6 +1,6 @@
 // Create (or reset) an approved account, so the first administrator can sign in to the panel.
 //
-//   set DATABASE_URL=<Supabase connection string>
+//   DATABASE_URL: from .env.local / .env in this folder, or set in the terminal
 //   set ADMIN_PASSWORD=<their password>
 //   npm run add-admin -- sara@fedpoint.us "Sara Khan"
 //
@@ -9,6 +9,15 @@
 import { pbkdf2Sync, randomBytes } from "node:crypto";
 
 import postgres from "postgres";
+
+// DATABASE_URL (and ADMIN_PASSWORD, if you put it there) may also come from this folder's .env.local / .env.
+for (const file of [".env.local", ".env"]) {
+  try {
+    process.loadEnvFile(file);
+  } catch {
+    // no such file
+  }
+}
 
 const [email, name] = [process.argv[2]?.trim().toLowerCase(), process.argv[3]?.trim()];
 const password = process.env.ADMIN_PASSWORD ?? "";
