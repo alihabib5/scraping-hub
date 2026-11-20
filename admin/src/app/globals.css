@@ -14,8 +14,12 @@
   --color-ink-50: #f4f7fa;
   --color-gold-600: #99692a;
   --color-gold-500: #b9873c;
+  --color-gold-400: #d2a55c;
+  --color-gold-300: #e4c48e;
   --color-gold-100: #f7edda;
+  --color-gold-50: #fcf8f0;
   --color-paper: #faf9f6;
+  --color-paper-dim: #f3f1ec;
 }
 
 @theme inline {
@@ -29,3 +33,65 @@ body { font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif
 .font-display { font-family: var(--font-display-serif), ui-serif, Georgia, serif; letter-spacing: -0.015em; }
 .tabular { font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--color-gold-500); outline-offset: 2px; }
+
+/* Browser surfaces in the palette, not the browser's defaults. */
+* { scrollbar-width: thin; scrollbar-color: var(--color-ink-300) transparent; }
+input[type="file"]::file-selector-button { font: inherit; }
+
+/* The Encrypter project's generator window (landing/app/globals.css), as it is. */
+:root { --mono: ui-monospace, Consolas, monospace; }
+.win {/* the real generator window, from ui_specification.md */
+  background: #F3F3F3; border: 1px solid #C9CFCC; border-radius: 8px; overflow: hidden;
+  box-shadow: 0 24px 40px -24px rgba(20,42,35,.45);
+  font: 400 .8rem/1.4 "Segoe UI", Arial, sans-serif; color: #1b1b1b;}
+.win-title {display: flex; justify-content: space-between; padding: 8px 12px; background: #fff; border-bottom: 1px solid #E1E1E1; font-size: .78rem;}
+.win-title span:last-child {color: #777;}
+.win-body {padding: 14px 16px 16px; display: grid; gap: 8px;}
+.win label {display: flex; align-items: center; gap: 6px; font-weight: 700;}
+.win-file {display: flex; gap: 6px;}
+.win-file div {flex: 1; border: 1px solid #8a8a8a; background: #fff; padding: 3px 6px; color: #666;}
+.win-file button, .win-gen {font: inherit; border: 1px solid #adadad; background: #E1E1E1; padding: 3px 10px;}
+.win-text {border: 1px solid #8a8a8a; background: #fff; padding: 6px 8px; font: 400 .76rem/1.5 Consolas, var(--mono); min-height: 84px;}
+.win-gen {background: #0078D4; color: #fff; border: 0; padding: 10px; font-weight: 700; margin-top: 4px;}
+.gen {color-scheme: light; font-size: .92rem; box-shadow: 0 40px 70px -36px rgba(0,0,0,.7);}
+.gen .win-title {align-items: center; padding: 10px 16px; font-size: .85rem;}
+.win-tag {font-size: .74rem; color: #2E6B4F;}
+.gen .win-body {padding: 18px 20px 20px; gap: 10px;}
+.gen-format {display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #adadad; border-radius: 2px; overflow: hidden; margin-bottom: 4px;}
+.gen-format button {display: grid; gap: 2px; text-align: left; padding: 9px 12px; cursor: pointer;
+  font: 700 .9rem/1.2 "Segoe UI", Arial, sans-serif; color: #1b1b1b; background: #fff; border: 0;}
+.gen-format button + button {border-left: 1px solid #adadad;}
+.gen-format button small {font-weight: 400; font-size: .74rem; color: #555;}
+.gen-format button.on {background: #E5F1FB; box-shadow: inset 0 -3px 0 #0078D4;}
+.gen-format button:hover:not(.on) {background: #F5F5F5;}
+.gen-radio {display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer;}
+.gen-radio input {accent-color: #0078D4; width: 15px; height: 15px; margin: 0;}
+.gen .win-file {gap: 8px;}
+.gen-path {flex: 1; min-width: 0; font: inherit; color: #1b1b1b; background: #fff;
+  border: 1px solid #8a8a8a; border-radius: 2px; padding: 6px 8px; cursor: pointer;}
+.gen-path::placeholder, .gen-text::placeholder {color: #6b6b6b;}
+.gen-path.mono {font: 400 .8rem/1.4 Consolas, var(--mono); cursor: text;}
+.gen-browse {font: inherit; color: #1b1b1b; background: #E1E1E1; border: 1px solid #adadad; border-radius: 2px;
+  padding: 6px 14px; cursor: pointer;}
+.gen-browse:hover {background: #E5F1FB; border-color: #0078D4;}
+.gen-text {width: 100%; resize: vertical; min-height: 116px; color: #1b1b1b; background: #fff;
+  border: 1px solid #8a8a8a; border-radius: 2px; padding: 8px 10px;
+  font: 400 .84rem/1.55 Consolas, var(--mono); caret-color: #0078D4;}
+.gen input:focus-visible, .gen textarea:focus-visible, .gen button:focus-visible {outline: 2px solid #0078D4; outline-offset: 1px; border-radius: 2px;}
+.gen-key {border: 1px solid #D0D0D0; border-radius: 2px; margin: 4px 0 0; padding: 8px 12px 12px; display: grid; gap: 8px;}
+.gen-key legend {padding: 0 4px; font-size: .78rem; color: #4a4a4a;}
+.win label.gen-field {display: grid; gap: 6px; font-weight: 400;}
+.gen-field span {font-size: .8rem; color: #4a4a4a;}
+.gen .win-gen {width: 100%; font: 700 .95rem/1 "Segoe UI", Arial, sans-serif; padding: 14px; cursor: pointer; border-radius: 2px; text-align: left; transition: background .15s;}
+.gen .win-gen:hover {background: #106EBE;}
+.gen .win-gen:disabled {background: #5C9FD6; cursor: progress;}
+.gen-error {margin: 0; max-width: none; padding: 8px 10px; background: #FDE7E9; color: #8A1C1C; border: 1px solid #F1B5B9; border-radius: 2px;}
+.gen-result {margin-top: 4px; padding: 14px; background: #EAF5EE; border: 1px solid #B6DCC3; border-radius: 2px; display: grid; gap: 10px;}
+.gen-result-head {display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 700; color: #1D5E3A;}
+.gen-token {display: block; font: 400 .76rem/1.4 Consolas, var(--mono); color: #3d4a44; word-break: break-all;}
+.gen-downloads {display: flex; flex-wrap: wrap; gap: 8px;}
+.gen-dl {font: 600 .88rem/1 "Segoe UI", Arial, sans-serif; color: #fff; background: #1D5E3A; border: 0; border-radius: 2px; padding: 10px 14px; cursor: pointer;}
+.gen-dl:hover {background: #164A2E;}
+.gen-note {margin: 0; max-width: none; font-size: .82rem; color: #3d4a44;}
+.gen .win-body {padding: 14px;}
+.gen .win-title {flex-wrap: wrap; gap: 2px 12px;}
