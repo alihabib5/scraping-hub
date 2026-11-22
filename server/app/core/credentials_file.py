@@ -111,6 +111,30 @@ def open_bytes(data: bytes, key: bytes) -> dict[str, str]:
     return decrypt(data, key)
 
 
+def lock_leftovers(path: Path, key: bytes) -> list[str]:
+    """Lock or remove portable copies left beside the installed file (Update credentials' .bak, a stray .new).
+
+    A portable leftover would undo the PC lock: copying the folder would carry
+    those (older) passwords to another PC. Ones this build opens are locked in
+    place; ones it can't open are useless to the app and are deleted. Returns
+    what was done, for the log. Best effort.
+    """
+    done = []
+    for leftover in (path.with_name(path.name + ".bak"), path.with_name(path.name + ".new")):
+        try:
+            if not leftover.is_file() or leftover.read_bytes()[:4] != MAGIC:
+                continue
+            try:
+                _, locked = load_and_lock(leftover, key)
+                done.append(f"locked {leftover.name}" if locked else f"left {leftover.name}")
+            except ValueError:
+                leftover.unlink()
+                done.append(f"removed {leftover.name} (not for this build)")
+        except OSError as exc:
+            done.append(f"could not secure {leftover.name}: {exc}")
+    return done
+
+
 def load_and_lock(path: Path, key: bytes) -> tuple[dict[str, str], bool]:
     """Open the installed file and, if it is still portable, lock it to this PC in place.
 

@@ -211,3 +211,24 @@ def test_damaged_locked_copy_is_refused_not_crashed():
 def test_portable_file_still_opens_for_update_credentials():
     values = {"A": "1"}
     assert cf.open_bytes(encrypt(values, KEY), KEY) == values
+
+
+@windows_only
+def test_portable_backups_beside_the_installed_file_are_locked_or_removed(tmp_path):
+    path = tmp_path / cf.FILE_NAME
+    path.write_bytes(encrypt({"A": "new"}, KEY))
+    (tmp_path / (cf.FILE_NAME + ".bak")).write_bytes(encrypt({"A": "old"}, KEY))  # Update credentials' backup
+    (tmp_path / (cf.FILE_NAME + ".new")).write_bytes(encrypt({"A": "x"}, bytes(32)))  # stray, another build's key
+
+    notes = cf.lock_leftovers(path, KEY)
+
+    bak = (tmp_path / (cf.FILE_NAME + ".bak")).read_bytes()
+    assert bak[:4] == cf.BOUND_MAGIC and cf.open_bytes(bak, KEY) == {"A": "old"}
+    assert not (tmp_path / (cf.FILE_NAME + ".new")).exists()
+    assert path.read_bytes()[:4] == cf.MAGIC  # the installed file itself is load_and_lock's job
+    assert notes == ["locked credentials.shc.bak", "removed credentials.shc.new (not for this build)"]
+    assert cf.lock_leftovers(path, KEY) == []  # nothing portable left the second time
+
+
+def test_no_leftovers_is_quiet(tmp_path):
+    assert cf.lock_leftovers(tmp_path / cf.FILE_NAME, KEY) == []

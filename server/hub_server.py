@@ -55,7 +55,7 @@ def _load_credentials_file() -> str:
         import _app_key
     except ImportError:
         return ""
-    from app.core.credentials_file import FILE_NAME, load_and_lock
+    from app.core.credentials_file import FILE_NAME, load_and_lock, lock_leftovers
 
     path = Path(data_dir) / FILE_NAME
     if not data_dir or not path.is_file():
@@ -70,6 +70,8 @@ def _load_credentials_file() -> str:
         return status
     if locked_now:
         logger.info("credentials file locked to this PC")
+    for note in lock_leftovers(path, _app_key.KEY):
+        logger.info("credentials backup: %s", note)
     for name, value in values.items():
         os.environ.setdefault(name, value)
     status = f"Loaded {len(values)} settings from {path}"

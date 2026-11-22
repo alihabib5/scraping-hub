@@ -370,8 +370,8 @@ async function start() {
   win = new BrowserWindow({
     width: 1400,
     height: 900,
-    minWidth: 1000,
-    minHeight: 650,
+    minWidth: 640, // half of a 1366-wide laptop screen still fits: the console switches to its narrow layout
+    minHeight: 560,
     title: "Scraping Hub",
     backgroundColor: "#faf8f3",
     autoHideMenuBar: true,

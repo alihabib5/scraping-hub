@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import ActiveJobs from "@/components/ActiveJobs";
+import ConsoleSidebar, { useSidebarCollapsed } from "@/components/ConsoleSidebar";
 import PortalPanelHost from "@/components/PortalPanelHost";
 import SessionEngine from "@/components/SessionEngine";
 import UpdateCredentialsButton from "@/components/UpdateCredentialsButton";
 
 import Copyright from "@/components/Copyright";
 import Logo from "@/components/Logo";
-import PortalIcon from "@/components/PortalIcon";
 import { LinkButton } from "@/components/ui";
 import { apiDocsUrl, type Portal } from "@/lib/api";
 import { isPortal, PORTALS } from "@/lib/portals";
@@ -43,21 +44,53 @@ export default function ConsoleShell({ children }: { children: React.ReactNode }
   // at another one — the point of the whole exercise is that a run you navigated
   // away from is still going.
   const live = useActivePortals();
+  const [collapsed] = useSidebarCollapsed();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const currentPortal = PORTALS.find((p) => p.key === portal);
+
+  // Escape closes the drawer; it also closes if the window grows past the narrow layout.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawerOpen(false);
+    const wide = window.matchMedia("(min-width: 1024px)");
+    const onWide = () => wide.matches && setDrawerOpen(false);
+    window.addEventListener("keydown", onKey);
+    wide.addEventListener("change", onWide);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      wide.removeEventListener("change", onWide);
+    };
+  }, [drawerOpen]);
 
   const href = (p: string, s: string) => `/console/${p}${s ? `/${s}` : ""}`;
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 border-b border-ink-200/70 bg-paper/85 backdrop-blur">
-        <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
+        <div className="flex h-16 items-center gap-2 px-3 sm:gap-3 sm:px-6">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open data sources"
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink-600 transition hover:bg-ink-50 hover:text-ink-900 lg:hidden"
+          >
+            <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+              <path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h13" strokeLinecap="round" />
+            </svg>
+            {live.size > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-paper" />}
+          </button>
           <Link href="/" className="flex shrink-0 items-center gap-2.5 rounded-lg transition hover:opacity-80">
             <Logo />
-            <span className="font-display text-base text-ink-900">Scraping Hub</span>
+            <span className="hidden font-display text-base text-ink-900 lg:inline">Scraping Hub</span>
           </Link>
+          {/* Narrow windows have no rail, so the header names the portal (it gives way first). */}
+          {currentPortal && (
+            <span className="min-w-0 truncate text-sm font-medium text-ink-600 lg:hidden">{currentPortal.label}</span>
+          )}
 
-          <span className="mx-1 hidden h-6 w-px bg-ink-200 sm:block" />
+          <span className="mx-1 hidden h-6 w-px shrink-0 bg-ink-200 sm:block" />
 
-          <nav className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" aria-label="Sections">
+          <nav className="no-scrollbar flex shrink-0 items-center gap-1 overflow-x-auto" aria-label="Sections">
             {SECTIONS.map((s) => {
               const isActive = s.key === section;
               return (
@@ -79,7 +112,9 @@ export default function ConsoleShell({ children }: { children: React.ReactNode }
             })}
           </nav>
 
-          <div className="hidden items-center gap-2 rounded-full border border-ink-200 bg-white px-2.5 py-1 md:flex">
+          <span className="min-w-0 flex-1" />
+
+          <div className="hidden items-center gap-2 rounded-full border border-ink-200 bg-white px-2.5 py-1 xl:flex">
             <span className="relative flex h-1.5 w-1.5">
               <span className="status-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -90,8 +125,9 @@ export default function ConsoleShell({ children }: { children: React.ReactNode }
           <UpdateCredentialsButton />
 
           <LinkButton href={apiDocsUrl()} target="_blank" rel="noopener noreferrer" size="sm">
-            <span className="hidden sm:inline">API docs</span>
-            <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 sm:hidden" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+            <span className="hidden lg:inline">API docs</span>
+            <span className="sr-only lg:hidden">API docs</span>
+            <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 lg:hidden" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
               <path d="M5 3.5h6.5L15 7v9.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z" strokeLinejoin="round" />
               <path d="M11 3.5V7h4M6.75 10.5h6.5M6.75 13.5h4" strokeLinecap="round" />
             </svg>
@@ -103,85 +139,39 @@ export default function ConsoleShell({ children }: { children: React.ReactNode }
       <SessionEngine />
 
       <div className="flex min-h-0 flex-1">
-        {/* Source rail */}
-        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-64 shrink-0 flex-col border-r border-ink-200/70 bg-white/60 lg:flex">
-          <nav className="flex-1 overflow-y-auto p-3" aria-label="Data sources">
-            <p className="eyebrow px-3 pb-2 pt-3 text-ink-400">Data sources</p>
-            <ul className="space-y-1">
-              {PORTALS.map((p) => {
-                const isActive = p.key === portal;
-                return (
-                  <li key={p.key}>
-                    <Link
-                      href={href(p.key, section)}
-                      aria-current={isActive ? "page" : undefined}
-                      className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition ${
-                        isActive ? "bg-white shadow-sm shadow-ink-900/[0.04] ring-1 ring-ink-200/70" : "hover:bg-white/70"
-                      }`}
-                    >
-                      {isActive && (
-                        <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-gold-500" />
-                      )}
-                      <span
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 transition ${
-                          isActive ? p.accent.tile : "bg-ink-50 text-ink-400 ring-ink-100 group-hover:text-ink-600"
-                        }`}
-                      >
-                        <PortalIcon name={p.icon} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className={`block truncate text-sm ${isActive ? "font-semibold text-ink-900" : "font-medium text-ink-700"}`}>
-                          {p.label}
-                        </span>
-                        <span className="block truncate text-xs text-ink-500">{p.tagline}</span>
-                      </span>
-                      {live.has(p.key) && (
-                        <span className="relative flex h-2 w-2 shrink-0" title="Scraping now">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                          <span className="sr-only">Scraping now</span>
-                        </span>
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+        {/* Source rail (wide windows): collapses to icons */}
+        <aside
+          className={`sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 border-r border-ink-200/70 bg-white/60 transition-[width] duration-200 lg:block ${
+            collapsed ? "w-[4.5rem]" : "w-64"
+          }`}
+        >
+          <ConsoleSidebar portal={portal} hrefFor={(p) => href(p, section)} live={live} mode="rail" />
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          {/* Source switcher for narrow screens */}
-          <div className="border-b border-ink-200/70 bg-white/60 lg:hidden">
-            <nav className="no-scrollbar flex gap-2 overflow-x-auto px-5 py-3" aria-label="Data sources">
-              {PORTALS.map((p) => {
-                const isActive = p.key === portal;
-                return (
-                  <Link
-                    key={p.key}
-                    href={href(p.key, section)}
-                    aria-current={isActive ? "page" : undefined}
-                    className={`flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
-                      isActive ? "border-ink-900 bg-ink-900 font-medium text-white" : "border-ink-200 bg-white text-ink-600"
-                    }`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        live.has(p.key)
-                          ? "bg-emerald-500"
-                          : isActive
-                            ? "bg-gold-400"
-                            : p.accent.dot
-                      }`}
-                    />
-                    {p.label}
-                  </Link>
-                );
-              })}
-            </nav>
+        {/* The same list as a slide-in drawer (narrow windows) */}
+        {drawerOpen && (
+          <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Data sources">
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={() => setDrawerOpen(false)}
+              className="absolute inset-0 bg-ink-900/30"
+            />
+            <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-paper shadow-xl">
+              <ConsoleSidebar
+                portal={portal}
+                hrefFor={(p) => href(p, section)}
+                live={live}
+                mode="drawer"
+                onNavigate={() => setDrawerOpen(false)}
+                onClose={() => setDrawerOpen(false)}
+              />
+            </aside>
           </div>
+        )}
 
-          <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 sm:px-8">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-8 sm:py-8">
             {/* The portal panels are rendered here, by the layout, rather than
                 by `[portal]/page.tsx` — that page renders nothing. A page is
                 torn down on navigation; this is not, which is what lets a

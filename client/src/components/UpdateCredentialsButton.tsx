@@ -35,12 +35,6 @@ export default function UpdateCredentialsButton() {
   const desktop = useSyncExternalStore(noSubscribe, () => Boolean(window.scrapingHub), () => false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<UpdateResult | null>(null);
-  const [name, setName] = useState<string | null>(null);
-
-  useEffect(() => {
-    window.scrapingHub?.currentUser().then((u) => setName(u?.name ?? null));
-  }, []);
-
   // A success note goes away on its own; a problem stays until dismissed.
   useEffect(() => {
     if (!result?.ok) return;
@@ -65,18 +59,6 @@ export default function UpdateCredentialsButton() {
 
   return (
     <>
-      {name && (
-        <span className="hidden items-center gap-2 text-xs text-ink-600 md:flex" data-testid="signed-in-as">
-          <span className="max-w-[10rem] truncate font-medium text-ink-800">{name}</span>
-          <button
-            type="button"
-            onClick={() => window.scrapingHub?.signOut()}
-            className="rounded-md px-1.5 py-0.5 text-ink-500 underline-offset-2 transition hover:text-ink-900 hover:underline"
-          >
-            Sign out
-          </button>
-        </span>
-      )}
       <Button
         size="sm"
         loading={busy}
@@ -84,8 +66,8 @@ export default function UpdateCredentialsButton() {
         data-testid="update-credentials"
         title="Load a new credentials file after a portal password changes"
       >
-        <span className="hidden sm:inline">{busy ? "Updating…" : "Update credentials"}</span>
-        <span className="sm:hidden">Credentials</span>
+        <span className="hidden lg:inline">{busy ? "Updating…" : "Update credentials"}</span>
+        <span className="lg:hidden">{busy ? "Updating…" : "Credentials"}</span>
       </Button>
 
       {result && (
