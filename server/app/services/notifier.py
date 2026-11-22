@@ -1,5 +1,5 @@
 """Post-scrape notification: upload the run's Excel to S3 and email recipients
-via AWS SES SMTP.
+via the configured mail server (Gmail SMTP or AWS SES; see services/mailer.py).
 
 This is the same mechanism as the sam-septa project's services/notifier.py,
 adapted to the hub: config comes from the hub `settings` (pydantic-settings)
@@ -13,7 +13,6 @@ Everything here is best-effort — a notification failure never affects a scrape
 """
 
 import logging
-import smtplib
 import threading
 import zipfile
 from datetime import datetime
@@ -25,6 +24,7 @@ from email.mime.text import MIMEText
 
 from app.config import settings
 from app.core import exports, run_manager
+from app.services import mailer
 
 logger = logging.getLogger(__name__)
 
@@ -61,42 +61,18 @@ def _upload_to_s3(data: bytes, filename: str, content_type: str = _XLSX_MIME) ->
 
 
 def _send_email(recipients: list[str], subject: str, body_html: str, attachment: bytes, filename: str) -> bool:
-    """Send an HTML email with the Excel attached, via the AWS SES SMTP interface."""
-    sender = settings.aws_ses_from_email
-    username = settings.aws_ses_username
-    password = settings.aws_ses_password
-    region = settings.aws_region or "us-east-1"
-    host = f"email-smtp.{region}.amazonaws.com"
-    port = 587
+    """Send an HTML email with the Excel attached, via the configured mail server (Gmail or AWS SES)."""
+    msg = MIMEMultipart("mixed")
+    msg["Subject"] = subject
+    msg["To"] = ", ".join(recipients)
+    msg.attach(MIMEText(body_html, "html"))
 
-    if not all([sender, username, password]):
-        logger.warning("AWS SES SMTP credentials incomplete — skipping email notification")
-        return False
-
-    try:
-        msg = MIMEMultipart("mixed")
-        msg["Subject"] = subject
-        msg["From"] = sender
-        msg["To"] = ", ".join(recipients)
-        msg.attach(MIMEText(body_html, "html"))
-
-        part = MIMEBase("application", "octet-stream")
-        part.set_payload(attachment)
-        encoders.encode_base64(part)
-        part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
-        msg.attach(part)
-
-        with smtplib.SMTP(host, port) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(username, password)
-            server.sendmail(sender, recipients, msg.as_bytes())
-
-        logger.info("Email sent via SES SMTP to %s", recipients)
-        return True
-    except Exception as exc:  # noqa: BLE001 — email is best-effort
-        logger.error("SES SMTP email failed: %s", exc)
-        return False
+    part = MIMEBase("application", "octet-stream")
+    part.set_payload(attachment)
+    encoders.encode_base64(part)
+    part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
+    msg.attach(part)
+    return mailer.send(msg, recipients, "run email")
 
 
 # SES caps a whole message around 10 MB — leave headroom for encoding overhead.

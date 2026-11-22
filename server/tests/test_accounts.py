@@ -118,7 +118,8 @@ class FakePanel:
         if not account["approved"]:
             return Reply(409, {"detail": "This account is waiting for an administrator to approve it."})
         self.opened += 1
-        return Reply(200, {"email": json["email"], "name": account["name"], "session_id": f"s{self.opened}"})
+        return Reply(200, {"email": json["email"], "name": account["name"], "session_id": f"s{self.opened}",
+                           "ip": "203.0.113.7"})
 
 
 @pytest.fixture

@@ -12,8 +12,8 @@
 ; upgrades in place and keeps the database, results and credentials.
 
 #define AppName "Scraping Hub"
-#define AppVersion "1.0.0"
-#define AppPublisher "Rizviz"
+#define AppVersion "1.0.2"
+#define AppPublisher "Rizviz International Impex"
 #define AppExe "Scraping Hub.exe"
 #ifndef Stage
 #define Stage "build\stage"
@@ -44,6 +44,8 @@ SolidCompression=yes
 CloseApplications=yes
 RestartApplications=no
 VersionInfoCompany={#AppPublisher}
+VersionInfoCopyright=Copyright (C) Rizviz International Impex. All rights reserved.
+AppCopyright=Copyright (C) Rizviz International Impex. All rights reserved.
 VersionInfoProductName={#AppName}
 VersionInfoVersion={#AppVersion}
 
@@ -73,8 +75,76 @@ const
   CredName = 'credentials.shc';
   DbService = 'ScrapingHubDB';
 
+  // Google's own offline installer for businesses (64-bit MSI): installs Chrome for
+  // every user, silently, and keeps it updating. Fetched at install time from Google,
+  // so this setup does not carry or redistribute Chrome itself.
+  ChromeUrl = 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi';
+  ChromeMsiName = 'chrome-enterprise-x64.msi';
+
 var
   CredPage: TInputFileWizardPage;
+  DownloadPage: TDownloadWizardPage;
+  ChromeMsi: String; // downloaded installer, '' when not needed or not available
+
+function ChromeInstalled: Boolean;
+begin
+  Result := RegKeyExists(HKLM, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe')
+    or RegKeyExists(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe')
+    or FileExists(ExpandConstant('{commonpf64}\Google\Chrome\Application\chrome.exe'))
+    or FileExists(ExpandConstant('{commonpf32}\Google\Chrome\Application\chrome.exe'))
+    or FileExists(ExpandConstant('{localappdata}\Google\Chrome\Application\chrome.exe'));
+end;
+
+function OnDownloadProgress(const Url, FileName: String; const Progress, ProgressMax: Int64): Boolean;
+begin
+  Result := True;
+end;
+
+// Fetch Chrome's installer before the install starts, with a progress bar.
+// Never blocks the install: without internet, Chrome is simply asked for at the end.
+procedure DownloadChromeWithProgress;
+begin
+  DownloadPage.Clear;
+  DownloadPage.Add(ChromeUrl, ChromeMsiName, '');
+  DownloadPage.Show;
+  try
+    try
+      DownloadPage.Download;
+      ChromeMsi := ExpandConstant('{tmp}\' + ChromeMsiName);
+    except
+      ChromeMsi := '';
+      Log('Chrome download failed: ' + GetExceptionMessage);
+    end;
+  finally
+    DownloadPage.Hide;
+  end;
+end;
+
+// The same without a window, for /SILENT installs (pages are not shown there).
+procedure DownloadChromeQuietly;
+begin
+  try
+    DownloadTemporaryFile(ChromeUrl, ChromeMsiName, '', nil);
+    ChromeMsi := ExpandConstant('{tmp}\' + ChromeMsiName);
+  except
+    ChromeMsi := '';
+    Log('Chrome download failed: ' + GetExceptionMessage);
+  end;
+end;
+
+// Installs Chrome for all users from the downloaded MSI. True when Chrome is there afterwards.
+function InstallChrome: Boolean;
+var
+  Code: Integer;
+begin
+  if ChromeMsi <> '' then begin
+    WizardForm.StatusLabel.Caption := 'Installing Google Chrome (needed to visit the portals)...';
+    Exec(ExpandConstant('{sys}\msiexec.exe'), '/i "' + ChromeMsi + '" /qn /norestart', '',
+      SW_HIDE, ewWaitUntilTerminated, Code);
+    Log('Chrome install exit code ' + IntToStr(Code));
+  end;
+  Result := ChromeInstalled;
+end;
 
 // An ARM PC runs this x64 build through emulation, where the engine has
 // failed with "illegal instruction". Warn before wasting a long install.
@@ -117,6 +187,9 @@ begin
     Hint);
   CredPage.Add('Credentials file:', 'Scraping Hub credentials (*.shc)|*.shc|All files|*.*', '.shc');
   CredPage.Values[0] := ExpandConstant('{param:CREDENTIALS|}');
+  DownloadPage := CreateDownloadPage('Downloading Google Chrome',
+    'Scraping Hub uses Google Chrome to visit the portals. This PC does not have it yet, so it is being downloaded from Google.',
+    @OnDownloadProgress);
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -124,6 +197,10 @@ var
   Path: String;
 begin
   Result := True;
+  if (CurPageID = wpReady) and not ChromeInstalled then begin
+    DownloadChromeWithProgress;
+    Exit;
+  end;
   if CurPageID <> CredPage.ID then
     Exit;
   Path := Trim(CredPage.Values[0]);
@@ -151,10 +228,51 @@ begin
   Result := '';
 end;
 
-function ChromeInstalled: Boolean;
+// Everything support needs, as one zip on the shared Desktop (C:\Users\Public\Desktop,
+// so it shows for whoever is signed in, even when an admin account ran the setup).
+// The person sends one file and never has to find ProgramData. '' if it could not be made.
+function SaveSupportFile: String;
+var
+  Code: Integer;
+  Zip: String;
 begin
-  Result := RegKeyExists(HKLM, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe')
-    or RegKeyExists(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe');
+  Zip := ExpandConstant('{commondesktop}\Scraping Hub support.zip');
+  DeleteFile(Zip);
+  Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoProfile -NonInteractive -Command "Compress-Archive -Path ''' + DataDir + '\logs\*'' -DestinationPath ''' + Zip + ''' -Force"',
+    '', SW_HIDE, ewWaitUntilTerminated, Code);
+  if FileExists(Zip) then
+    Result := Zip
+  else
+    Result := '';
+end;
+
+// A problem in plain words; the details go to support as one file, not to the person.
+procedure ReportProblem(const What: String);
+var
+  Zip, Tail: String;
+begin
+  if WizardSilent then
+    Exit;
+  Zip := SaveSupportFile;
+  if Zip <> '' then
+    Tail := 'Please send Rizviz support the file "Scraping Hub support.zip" that is now on your Desktop.'
+  else
+    Tail := 'Please tell Rizviz support, with the name of this PC.';
+  MsgBox(What + #13#10#13#10 + 'Running this setup again often fixes it. If it does not, ' + Tail, mbError, MB_OK);
+end;
+
+function RunDatabaseSetup: Integer;
+var
+  Code: Integer;
+begin
+  if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+      '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\tools\setup-database.ps1') +
+      '" -InstallDir "' + ExpandConstant('{app}') + '"',
+      '', SW_HIDE, ewWaitUntilTerminated, Code) then
+    Result := Code
+  else
+    Result := -1;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -177,27 +295,42 @@ begin
   Exec(ExpandConstant('{app}\tools\vcredist_x64.exe'), '/install /quiet /norestart', '',
     SW_HIDE, ewWaitUntilTerminated, Code);
 
-  WizardForm.StatusLabel.Caption := 'Setting up the Scraping Hub database...';
-  if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-      '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\tools\setup-database.ps1') +
-      '" -InstallDir "' + ExpandConstant('{app}') + '"',
-      '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
-    MsgBox('The Scraping Hub database could not be set up (code ' + IntToStr(Code) + ').' + #13#10 +
-      'Please send IT this file:' + #13#10 + DataDir + '\logs\setup-database.log', mbError, MB_OK);
+  // One automatic retry: a first start of the database service can be slow
+  // (antivirus scanning the new files). The script is safe to run twice.
+  WizardForm.StatusLabel.Caption := 'Preparing Scraping Hub''s database...';
+  Code := RunDatabaseSetup;
+  if Code <> 0 then begin
+    WizardForm.StatusLabel.Caption := 'Preparing Scraping Hub''s database (second try)...';
+    Sleep(5000);
+    Code := RunDatabaseSetup;
+  end;
+  if Code <> 0 then begin
+    ReportProblem('Scraping Hub was installed, but it could not prepare its database on this PC.');
+    Exit; // the engine check below cannot pass without a database: one message is enough
+  end;
 
-  // Prove the engine runs on this PC before the user ever opens it. The result
+  // Chrome: installed here if it was missing (downloaded before the install began).
+  if not ChromeInstalled then begin
+    if (ChromeMsi = '') and WizardSilent then
+      DownloadChromeQuietly;
+    if not InstallChrome then begin
+      if not WizardSilent then
+        MsgBox('One more step: please install Google Chrome (google.com/chrome).' + #13#10#13#10 +
+          'Scraping Hub could not install it automatically (is this PC connected to the internet?). ' +
+          'Once Chrome is installed, Scraping Hub is ready to use.',
+          mbInformation, MB_OK);
+      Exit; // the engine check opens Chrome, so it would only fail
+    end;
+  end;
+
+  // Prove the engine runs on this PC before the person ever opens it. The result
   // goes to logs\self-check.log, so a failure arrives with its reason attached.
-  WizardForm.StatusLabel.Caption := 'Checking the installation (about half a minute)...';
+  WizardForm.StatusLabel.Caption := 'Checking that everything works (about half a minute)...';
   if not Exec(ExpandConstant('{cmd}'),
       '/C ""' + ExpandConstant('{app}\server\scraping-hub-server.exe') + '" --self-check > "' +
       DataDir + '\logs\self-check.log" 2>&1"',
       '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
-    MsgBox('Scraping Hub was installed, but its engine did not pass the self-check on this PC (code ' + IntToStr(Code) + ').' + #13#10 +
-      'Please send IT these files:' + #13#10 + DataDir + '\logs\self-check.log' + #13#10 + DataDir + '\logs\setup-database.log', mbError, MB_OK);
-
-  if not ChromeInstalled and not WizardSilent then
-    MsgBox('Google Chrome was not found on this PC. Scraping Hub uses Chrome to visit the portals, ' +
-      'so please install Chrome before your first run.', mbInformation, MB_OK);
+    ReportProblem('Scraping Hub was installed, but its final check did not pass on this PC.');
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

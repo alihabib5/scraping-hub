@@ -55,7 +55,7 @@ def _load_credentials_file() -> str:
         import _app_key
     except ImportError:
         return ""
-    from app.core.credentials_file import FILE_NAME, decrypt
+    from app.core.credentials_file import FILE_NAME, load_and_lock
 
     path = Path(data_dir) / FILE_NAME
     if not data_dir or not path.is_file():
@@ -63,11 +63,13 @@ def _load_credentials_file() -> str:
         logger.warning(status)
         return status
     try:
-        values = decrypt(path.read_bytes(), _app_key.KEY)
-    except ValueError as exc:
+        values, locked_now = load_and_lock(path, _app_key.KEY)
+    except (OSError, ValueError) as exc:
         status = f"Could not open {path}: {exc}"
         logger.error(status)
         return status
+    if locked_now:
+        logger.info("credentials file locked to this PC")
     for name, value in values.items():
         os.environ.setdefault(name, value)
     status = f"Loaded {len(values)} settings from {path}"
@@ -87,15 +89,40 @@ def _check_credentials(path: str) -> int:
     except ImportError:
         print("FAIL - not a compiled build (no key)")
         return 1
-    from app.core.credentials_file import decrypt
+    from app.core.credentials_file import open_bytes
 
     try:
-        values = decrypt(Path(path).read_bytes(), _app_key.KEY)
+        values = open_bytes(Path(path).read_bytes(), _app_key.KEY)
     except (OSError, ValueError) as exc:
         print(f"FAIL - {exc}")
         return 1
     print(f"OK - {len(values)} settings")
     return 0
+
+
+BROWSER_CHECK_S = 90
+
+
+def _within(seconds: float, fn):
+    """fn()'s result, or TimeoutError after `seconds`. The worker is a daemon thread, so a hung one can't keep the process alive."""
+    import threading
+
+    box: dict = {}
+
+    def work() -> None:
+        try:
+            box["value"] = fn()
+        except BaseException as exc:  # noqa: BLE001 — handed back to the caller
+            box["error"] = exc
+
+    t = threading.Thread(target=work, daemon=True)
+    t.start()
+    t.join(seconds)
+    if t.is_alive():
+        raise TimeoutError(f"did not finish within {seconds:.0f} s")
+    if "error" in box:
+        raise box["error"]
+    return box["value"]
 
 
 def _self_check(credentials_status: str) -> int:
@@ -174,8 +201,10 @@ def _self_check(credentials_status: str) -> int:
         ("Excel .xls", lambda: __import__("xlrd") and ""),
         ("date parsing", lambda: __import__("dateutil.parser") and ""),
         ("email upload (boto3)", lambda: __import__("boto3") and ""),
-        ("Chrome (headless)", browser),
         ("credentials file", credentials),
+        # Last, and time-limited: a Chrome that never answers (first-run prompt,
+        # blocked chromedriver download) must not leave the setup wizard waiting forever.
+        ("Chrome (headless)", lambda: _within(BROWSER_CHECK_S, browser)),
     ]
     failed = 0
     for name, fn in checks:

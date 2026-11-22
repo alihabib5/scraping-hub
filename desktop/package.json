@@ -1,14 +1,14 @@
 {
   "name": "scraping-hub-desktop",
   "productName": "Scraping Hub",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Scraping Hub desktop app",
-  "author": "Rizviz",
+  "author": "Rizviz International Impex",
   "private": true,
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "package": "electron-packager . \"Scraping Hub\" --platform=win32 --arch=x64 --asar --overwrite --icon=../installer/scraping-hub.ico --out=../installer/build/desktop --app-copyright=Rizviz --win32metadata.CompanyName=Rizviz --win32metadata.ProductName=\"Scraping Hub\""
+    "package": "electron-packager . \"Scraping Hub\" --platform=win32 --arch=x64 --asar --overwrite --icon=../installer/scraping-hub.ico --out=../installer/build/desktop --app-copyright=\"© Rizviz International Impex. All rights reserved.\" --win32metadata.CompanyName=\"Rizviz International Impex\" --win32metadata.ProductName=\"Scraping Hub\""
   },
   "devDependencies": {
     "@electron/packager": "^20.3.0",

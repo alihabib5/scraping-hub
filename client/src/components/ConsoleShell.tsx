@@ -8,6 +8,7 @@ import PortalPanelHost from "@/components/PortalPanelHost";
 import SessionEngine from "@/components/SessionEngine";
 import UpdateCredentialsButton from "@/components/UpdateCredentialsButton";
 
+import Copyright from "@/components/Copyright";
 import Logo from "@/components/Logo";
 import PortalIcon from "@/components/PortalIcon";
 import { LinkButton } from "@/components/ui";
@@ -196,9 +197,12 @@ export default function ConsoleShell({ children }: { children: React.ReactNode }
           <ActiveJobs />
 
           <footer className="border-t border-ink-200/70 px-5 py-5 sm:px-8">
-            <p className="mx-auto max-w-5xl text-xs text-ink-400">
-              Scraping Hub — automated bid collection for public procurement portals.
-            </p>
+            <div className="mx-auto flex max-w-5xl flex-col gap-1">
+              <p className="text-xs text-ink-400">
+                Scraping Hub — automated bid collection for public procurement portals.
+              </p>
+              <Copyright />
+            </div>
           </footer>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import Copyright from "@/components/Copyright";
 import LandingStats from "@/components/LandingStats";
 import Logo from "@/components/Logo";
 import PortalIcon from "@/components/PortalIcon";
@@ -46,6 +47,7 @@ export default function Landing() {
             Automated bid collection for public procurement portals.
           </p>
         </div>
+        <Copyright className="mx-auto mt-6 max-w-6xl" />
       </footer>
     </div>
   );
