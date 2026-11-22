@@ -201,6 +201,17 @@ class Settings(BaseSettings):
     aws_ses_from_email: str = ""
     aws_ses_username: str = ""
     aws_ses_password: str = ""
+    # Any SMTP mail server, e.g. Gmail (smtp.gmail.com, 587, the Gmail address and
+    # a Google "app password"). When smtp_host is set, every email the hub sends
+    # goes through it; otherwise the AWS SES settings above are used.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""  # blank = smtp_username
+    # Who gets an email every time someone signs in to the Windows app
+    # (app/services/signin_alert.py), comma-separated. Blank = no alerts.
+    signin_alert_emails: str = ""
 
     # Legacy output root (data/documents). New runs no longer write here — they
     # work inside work_root and archive into archive_root — but the path is kept

@@ -14,7 +14,7 @@
 // credentials.shc after the engine confirms it opens, then restart the engine.
 
 const { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } = require("electron");
-const { spawn, execFile } = require("node:child_process");
+const { spawn, execFile, execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -80,6 +80,59 @@ function serveConsole() {
 
 let failed = false;
 
+const SUPPORT_NOTE =
+  "If it happens again, click \u201cSave support file\u201d and send the file it puts on your Desktop to Rizviz support.";
+
+/**
+ * Everything support needs, as one zip on the Desktop: the logs folder
+ * (engine, database setup, self-check). The person only has to send one file;
+ * they never have to find ProgramData. Returns the zip's path, or null.
+ */
+function saveSupportFile() {
+  const logs = path.join(DATA_DIR, "logs");
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+  const zip = path.join(app.getPath("desktop"), `Scraping Hub support ${stamp}.zip`);
+  const ps = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  try {
+    execFileSync(
+      ps,
+      ["-NoProfile", "-NonInteractive", "-Command",
+        `Compress-Archive -Path '${logs.replace(/'/g, "''")}\\*' -DestinationPath '${zip.replace(/'/g, "''")}' -Force`],
+      { windowsHide: true, timeout: 60_000 },
+    );
+    return fs.existsSync(zip) ? zip : null;
+  } catch (err) {
+    console.error("support file failed:", err.message);
+    return null;
+  }
+}
+
+/** Plain words, plus a one-click way to send support what they need. */
+function showProblem(title, message) {
+  const choice = dialog.showMessageBoxSync({
+    type: "error",
+    title,
+    message: title,
+    detail: `${message}\n\n${SUPPORT_NOTE}`,
+    buttons: ["Close", "Save support file"],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  });
+  if (choice !== 1) return;
+  const zip = saveSupportFile();
+  dialog.showMessageBoxSync({
+    type: zip ? "info" : "warning",
+    title: "Support file",
+    message: zip ? "The support file is on your Desktop." : "The support file could not be made.",
+    detail: zip
+      ? `Send this file to Rizviz support:\n${path.basename(zip)}`
+      : "Please tell Rizviz support what happened and the PC's name.",
+    buttons: ["OK"],
+    noLink: true,
+  });
+}
+
 /** Tell the user in plain words what went wrong, then close. Only the first problem is shown. */
 function fatal(title, message) {
   if (failed) return;
@@ -87,8 +140,17 @@ function fatal(title, message) {
   app.isQuitting = true;
   stopServer();
   console.error(`${title}: ${message}`);
-  dialog.showErrorBox(title, message);
+  showProblem(title, message);
   app.quit();
+}
+
+/** Keep the engine's log from growing forever: past 5 MB it starts over, keeping one previous file. */
+function rotateLog(file) {
+  try {
+    if (fs.statSync(file).size > 5 * 1024 * 1024) fs.renameSync(file, file.replace(/\.log$/, ".previous.log"));
+  } catch {
+    // no log yet, or it is in use: keep appending
+  }
 }
 
 /** Who is answering on the app's port: "hub" (an engine from an earlier session), "other" or "none". */
@@ -107,12 +169,13 @@ function startServer() {
   if (!fs.existsSync(SERVER_EXE)) {
     fatal(
       "Scraping Hub is incomplete",
-      `A part of Scraping Hub is missing:\n${SERVER_EXE}\n\n` +
-        "Please reinstall Scraping Hub. If your antivirus removed this file, ask IT to allow it, then reinstall.",
+      "A part of Scraping Hub is missing, so it cannot start.\n\n" +
+        "Please run the Scraping Hub setup again. If your antivirus removed the file, ask IT to allow Scraping Hub first.",
     );
     return false;
   }
   fs.mkdirSync(logs, { recursive: true });
+  rotateLog(logFile);
   const out = fs.openSync(logFile, "a");
   const proc = spawn(SERVER_EXE, [], {
     cwd: DATA_DIR,
@@ -127,6 +190,7 @@ function startServer() {
       WORK_DIR: path.join(DATA_DIR, "work"),
       NORTHDAKOTA_PROFILE_DIR: path.join(DATA_DIR, "chrome_profiles", "northdakota"),
       PUBLIC_BASE_URL: API,
+      SCRAPING_HUB_VERSION: app.getVersion(), // shown in the administrators' sign-in emails
     },
   });
   server = proc;
@@ -147,8 +211,7 @@ function startServer() {
     if (!app.isQuitting) {
       fatal(
         "Scraping Hub stopped",
-        `The Scraping Hub engine closed unexpectedly (code ${code}).\n\n` +
-          `Please close and reopen Scraping Hub. If it keeps happening, send IT this file:\n${logFile}`,
+        `Scraping Hub stopped unexpectedly (code ${code}). Please open Scraping Hub again.`,
       );
     }
   });
@@ -268,9 +331,7 @@ async function updateCredentials() {
   if (!(await restartServer())) {
     fatal(
       "Scraping Hub could not restart",
-      "The new credentials were saved, but the engine did not start again.\n\n" +
-        "Please close and reopen Scraping Hub. If it still fails, send IT this file:\n" +
-        path.join(DATA_DIR, "logs", "server.log"),
+      "The new credentials were saved, but Scraping Hub did not start again. Please open Scraping Hub again.",
     );
     return { ok: false, code: "failed" };
   }
@@ -344,7 +405,7 @@ async function start() {
     fatal(
       "Scraping Hub could not start",
       `Another program is using port ${PORT}, which Scraping Hub needs.\n\n` +
-        "Please restart the computer and try again. If it keeps happening, tell IT.",
+        "Please restart the computer and try again.",
     );
     return;
   }
@@ -353,9 +414,7 @@ async function start() {
   if (!(await waitForServer())) {
     fatal(
       "Scraping Hub could not start",
-      "The Scraping Hub engine did not start within 90 seconds.\n\n" +
-        "Please restart the computer and try again. If it still fails, send IT this file:\n" +
-        path.join(DATA_DIR, "logs", "server.log"),
+      "Scraping Hub took too long to start. Please restart the computer and open Scraping Hub again.",
     );
     return;
   }
@@ -365,6 +424,34 @@ async function start() {
     callback({ requestHeaders: details.requestHeaders });
   });
   await win.loadFile(SIGNIN_FILE);
+  askForChromeIfMissing();
+}
+
+/** Where Chrome installs itself: for every user (the setup's MSI) or for one user. */
+function chromeInstalled() {
+  const roots = [process.env.ProgramFiles, process.env["ProgramFiles(x86)"], process.env.LOCALAPPDATA].filter(Boolean);
+  return roots.some((root) => fs.existsSync(path.join(root, "Google", "Chrome", "Application", "chrome.exe")));
+}
+
+/**
+ * Every run drives Chrome. Say so up front, in plain words, instead of letting
+ * the first run fail with a driver error. Normally the setup already installed it.
+ */
+function askForChromeIfMissing() {
+  if (chromeInstalled()) return;
+  const choice = dialog.showMessageBoxSync(win, {
+    type: "warning",
+    title: "Google Chrome is needed",
+    message: "Please install Google Chrome",
+    detail:
+      "Scraping Hub uses Google Chrome to visit the portals, and this PC does not have it.\n\n" +
+      "Click “Get Chrome”, install it, then start your run. Scraping Hub does not need to be restarted.",
+    buttons: ["Get Chrome", "Later"],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (choice === 0) shell.openExternal("https://www.google.com/chrome/");
 }
 
 // -- Sign-in ---------------------------------------------------------------

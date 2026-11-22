@@ -65,10 +65,11 @@ def main() -> int:
         "--nofollow-import-to=tests",
         "--nofollow-import-to=pytest",
         *[f"--include-data-files={SERVER / f}={f}" for f in DATA_FILES],
-        "--company-name=Rizviz",
+        "--company-name=Rizviz International Impex",
+        "--copyright=Copyright (C) Rizviz International Impex. All rights reserved.",
         "--product-name=Scraping Hub",
-        "--file-version=1.0.0.0",
-        "--product-version=1.0.0.0",
+        "--file-version=1.0.2.0",
+        "--product-version=1.0.2.0",
         str(SERVER / "hub_server.py"),
     ]
     # zig builds its own C runtime at link time for the build PC's CPU (AVX2, LZCNT...)

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; script-src 'self'">
   <title>Sign in · Scraping Hub</title>
   <style>
     :root {
@@ -33,7 +33,8 @@
 
     .panel { width: 380px; }
     .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
-    .brand svg { flex: none; }
+    .brand img { flex: none; }
+    .legal { margin: 22px 0 0; font-size: 12px; line-height: 1.5; color: var(--ink-soft); text-align: center; }
     .brand h1 { margin: 0; font: 600 21px/1.2 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; letter-spacing: .1px; }
     .brand p { margin: 2px 0 0; font-size: 13px; color: var(--ink-soft); }
 
@@ -103,11 +104,7 @@
 <body>
   <main class="panel">
     <header class="brand">
-      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
-        <rect width="40" height="40" rx="10" fill="#0b1f3a"/>
-        <path d="M11 14.5h18M11 20h12M11 25.5h15" stroke="#faf8f3" stroke-width="2.2" stroke-linecap="round"/>
-        <circle cx="28.5" cy="25.5" r="2.6" fill="#b8892d"/>
-      </svg>
+      <img src="rizviz-mark.png" width="48" height="48" alt="Rizviz" draggable="false">
       <div>
         <h1>Scraping Hub</h1>
         <p>Public procurement bids, in one place</p>
@@ -170,6 +167,7 @@
         <button id="back" class="primary" type="button">Back to sign in</button>
       </div>
     </section>
+    <footer class="legal">© Rizviz International Impex. All rights reserved.<br>Proprietary software: copying, sharing or reverse-engineering it is not permitted.</footer>
   </main>
   <script src="signin.js"></script>
 </body>

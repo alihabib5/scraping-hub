@@ -177,12 +177,23 @@ def status() -> dict:
     return {"accounts": len(accounts()) + len(cached()), "panel": panel_configured()}
 
 
+def _alert(email: str, name: str, how: str, public_ip: str | None = None) -> None:
+    """Email the administrators about this sign-in (background, best effort)."""
+    try:
+        from app.services import signin_alert
+
+        signin_alert.notify(email, name, how, public_ip)
+    except Exception as exc:  # noqa: BLE001 — an alert must never block a sign-in
+        logger.error("sign-in alert could not be started: %s", exc)
+
+
 @router.post("/login")
 def login(body: SignIn) -> dict:
     global _session
     email = _key(body.username)
     name = verify(email, body.password)
     if name is not None:
+        _alert(email, name, "issued")
         return {"username": email, "name": name}
     if not panel_configured():
         raise HTTPException(status_code=401, detail="Wrong email or password")
@@ -192,6 +203,7 @@ def login(body: SignIn) -> dict:
         logger.warning("account panel unreachable (%s); checking this PC's remembered accounts", exc)
         account = cached().get(email)
         if account and _password_ok(account, body.password):
+            _alert(email, account["name"], "cached")
             return {"username": email, "name": account["name"]}
         raise HTTPException(status_code=503, detail="Can't reach the account server, and this account hasn't signed in "
                                                     "on this PC before. Check the internet connection.") from exc
@@ -201,6 +213,7 @@ def login(body: SignIn) -> dict:
         _remember(email, name, body.password)
         _end_session()  # a previous sign-in on this PC that never signed out
         _session = reply.get("session_id")
+        _alert(email, name, "panel", reply.get("ip"))
         return {"username": email, "name": name}
     if response.status_code == 409:  # right password, not approved yet
         raise HTTPException(status_code=403, detail=_detail(response) or "This account is waiting for approval.")

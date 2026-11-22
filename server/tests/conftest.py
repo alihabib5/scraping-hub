@@ -30,3 +30,19 @@ def _no_run_persistence(monkeypatch):
     from app.core import run_manager
 
     monkeypatch.setattr(run_manager, "_persist", lambda run: None)
+
+
+@pytest.fixture(autouse=True)
+def _no_signin_emails(monkeypatch):
+    """Sign-ins in tests never email the real administrators (server/.env may list them)."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "signin_alert_emails", "")
+
+
+@pytest.fixture(autouse=True)
+def _no_real_emails(monkeypatch):
+    """No test reaches a real mail server, whatever server/.env sets up (Gmail or SES)."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "recipient_emails", "")

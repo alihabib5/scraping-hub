@@ -165,3 +165,49 @@ def test_check_credentials_refuses_another_builds_file_a_wrong_file_or_none(tmp_
         out = _check(tmp_path, file)
         assert out.returncode == 1, file
         assert out.stdout.startswith("FAIL - "), out.stdout
+
+
+# -- Locked to this PC (Windows DPAPI) ----------------------------------------
+
+from app.core import credentials_file as cf  # noqa: E402
+
+windows_only = pytest.mark.skipif(not cf.can_bind(), reason="DPAPI is Windows-only")
+
+
+@windows_only
+def test_first_open_locks_the_installed_copy_to_this_pc(tmp_path):
+    values = {"BIDNET_USERNAME": "buyer@rizviz.example", "BIDNET_PASSWORD": "p#ss"}
+    path = tmp_path / cf.FILE_NAME
+    path.write_bytes(encrypt(values, KEY))
+
+    got, locked = cf.load_and_lock(path, KEY)
+    assert (got, locked) == (values, True)
+    data = path.read_bytes()
+    assert data[:4] == cf.BOUND_MAGIC
+    assert b"buyer@rizviz" not in data and b"p#ss" not in data
+    assert not (tmp_path / (cf.FILE_NAME + ".tmp")).exists()
+
+    # Opens again on this PC, and is not rewritten a second time.
+    assert cf.load_and_lock(path, KEY) == (values, False)
+    assert path.read_bytes() == data
+
+
+@windows_only
+def test_locked_copy_needs_this_builds_key(tmp_path):
+    locked = cf.bind_to_this_pc(encrypt({"A": "1"}, KEY), KEY)
+    with pytest.raises(ValueError, match="another PC"):
+        cf.open_bytes(locked, bytes(32))
+
+
+def test_damaged_locked_copy_is_refused_not_crashed():
+    if not cf.can_bind():
+        with pytest.raises(ValueError):
+            cf.open_bytes(cf.BOUND_MAGIC + b"\x00" * 64, KEY)
+        return
+    with pytest.raises(ValueError, match="another PC"):
+        cf.open_bytes(cf.BOUND_MAGIC + b"\x00" * 64, KEY)
+
+
+def test_portable_file_still_opens_for_update_credentials():
+    values = {"A": "1"}
+    assert cf.open_bytes(encrypt(values, KEY), KEY) == values

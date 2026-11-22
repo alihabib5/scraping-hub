@@ -1,10 +1,18 @@
-/** The Scraping Hub mark: rows of a list, the found one in gold. Same drawing as the app's sign-in screen. */
+/**
+ * The Rizviz "RV" mark (public/rizviz-mark.png, made by installer/make_logo.py), the same as the app's.
+ * On a dark background it sits on a light tile, because the mark's navy would disappear on navy.
+ */
 export default function Mark({ size = 32, onDark = false }: { size?: number; onDark?: boolean }) {
+  // eslint-disable-next-line @next/next/no-img-element -- a small static mark; next/image adds nothing here
+  const img = <img src="/rizviz-mark.png" alt="Rizviz" width={size} height={size} draggable={false} className="shrink-0" />;
+  if (!onDark) return img;
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden className="shrink-0">
-      <rect width="40" height="40" rx="10" fill={onDark ? "#faf9f6" : "#0b1f3a"} />
-      <path d="M11 14.5h18M11 20h12M11 25.5h15" stroke={onDark ? "#0b1f3a" : "#faf9f6"} strokeWidth="2.2" strokeLinecap="round" />
-      <circle cx="28.5" cy="25.5" r="2.6" fill="#b9873c" />
-    </svg>
+    <span
+      className="flex shrink-0 items-center justify-center rounded-[10px] bg-[#faf9f6]"
+      style={{ width: size, height: size, padding: Math.round(size * 0.1) }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- see above */}
+      <img src="/rizviz-mark.png" alt="Rizviz" className="h-full w-full object-contain" draggable={false} />
+    </span>
   );
 }

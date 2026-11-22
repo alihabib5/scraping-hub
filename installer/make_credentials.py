@@ -19,9 +19,17 @@ import secrets
 import sys
 from pathlib import Path
 
-from dotenv import dotenv_values
-
 ROOT = Path(__file__).resolve().parent.parent
+VENV_PYTHON = ROOT / "server" / ".venv" / "Scripts" / "python.exe"
+
+# Started with another Python (e.g. VS Code's Run button)? Run again with the
+# server's own, which has the packages this needs (fastapi, python-dotenv).
+if __name__ == "__main__" and VENV_PYTHON.is_file() and Path(sys.prefix).resolve() != VENV_PYTHON.parents[1].resolve():
+    import subprocess
+
+    sys.exit(subprocess.call([str(VENV_PYTHON), str(Path(__file__).resolve()), *sys.argv[1:]]))
+
+from dotenv import dotenv_values  # noqa: E402
 sys.path.insert(0, str(ROOT / "server"))
 
 from app.core.accounts import SETTING, USERNAME, hash_password  # noqa: E402
