@@ -3,9 +3,9 @@
 Flow, per run:
 
     /login -> "Vendor Login" -> email -> Continue -> password -> submit
-    top nav "Network"          -> Current Opportunities table
-    every page of the table    -> Project Title, Organization, State, Status,
-                                  Release Date, Due Date
+    top nav "Opportunities"    -> Current Solicitations table (AG Grid)
+    page size 100, Next Page   -> Project Title, Project ID, Agency, State,
+                                  Released, Due / Time Left, Bid URL
     rows -> database -> one .xlsx (no detail pages are opened: they trigger a CAPTCHA)
 
 The deliverable is a bare spreadsheet (`opengov` is in `exports.EXCEL_ONLY_PORTALS`);
@@ -13,8 +13,8 @@ nothing is downloaded.
 
 Selector policy: OpenGov's class names are build hashes (`_3r8N_1U5V…`) that change
 between deploys, so nothing here keys off one. The login uses the stable `data-qa`
-hooks, the nav uses `data-test`/`id`, the list table is located by its *header
-text* and read column-by-column from those headers.
+hooks, the nav link is found by its text, the grid is read column-by-column from its
+header text.
 """
 
 from __future__ import annotations
@@ -49,93 +49,126 @@ PASSWORD_INPUT = "input[type='password']"
 LOGIN_TIMEOUT = 90
 
 # -- navigation ----------------------------------------------------------------
-# The top-nav item. Present only once the session is real, so it doubles as the
-# "we are logged in" check.
-NETWORK_LINK = "li#network a, li[data-test='level_one_item_network_link'] a"
+# The top-nav "Opportunities" label. Present only once the session is real, so it
+# doubles as the "we are logged in" check. It is a <span>; the click goes to its
+# nearest link/button ancestor.
+OPPORTUNITIES_XPATH = (
+    "//span[normalize-space(.)='Opportunities' and contains(@class,'MuiTypography')]"
+)
 TABLE_TIMEOUT = 60
 SETTLE_SECONDS = 1.0
 MAX_PAGES = 200
 PAGE_TURN_TIMEOUT = 30
 LIVE_PREVIEW_CEILING = 1000
 
-# ReactTable's own pager.
-NEXT_BUTTON_CSS = ".-pagination .-next button.-btn"
-PAGE_INPUT_CSS = ".-pagination .-pageJump input"
-TOTAL_PAGES_CSS = ".-pagination .-totalPages"
-PAGE_SIZE_CSS = "select[aria-label='rows per page']"
-PAGE_SIZE = "20"  # the largest the table offers: fewest pages to walk
-LOADING_CSS = ".ReactTable .-loading.-active"
+# The Current Solicitations grid (AG Grid) and its pager.
+GRID_CSS = "[data-testid='opportunity-directory-grid']"
+LOADING_CSS = ".ag-overlay-loading-center, .ag-overlay-loading-wrapper"
+PAGE_SIZE = "100"
+# Page-size control: a native <select> or a MUI/AG combobox, found by label.
+PAGE_SIZE_XPATH = (
+    "//*[self::select or @role='combobox' or @role='button']"
+    "[contains(translate(@aria-label,'PAGESIZRWO','pagesizrwo'),'page size')"
+    " or contains(translate(@aria-label,'PAGESIZRWO','pagesizrwo'),'rows per page')"
+    " or contains(translate(@aria-labelledby,'PAGESIZRWO','pagesizrwo'),'page-size')]"
+)
+PAGE_SIZE_FALLBACK_CSS = (
+    ".ag-paging-page-size .ag-picker-field-wrapper, .ag-paging-page-size select, "
+    "[data-testid*='page-size' i], [data-testid*='pageSize' i]"
+)
+NEXT_BUTTON_CSS = (
+    "button[aria-label='Next Page'], button[aria-label='Next page'], "
+    "button[aria-label='Go to next page'], [data-testid*='next' i][role='button'], "
+    ".ag-paging-button[ref='btNext'], .ag-paging-button[aria-label='Next Page']"
+)
+OPTION_CSS = "[role='option'], li[role='option'], .ag-list-item, option"
 
-# Passive tap on the page's own data feed. The list response carries each
-# project's `id` and `government.code` (the agency slug used in bid URLs); the
-# table shows neither, so they are recorded as the responses arrive. Nothing is
-# requested here, and no bid page is opened.
-_TAP_JS = r"""
-if (window.__govTap) return true;
-window.__govTap = true; window.__govCodes = window.__govCodes || {};
-const take = text => { try {
-  for (const p of (JSON.parse(text).projects || []))
-    if (p && p.id != null && p.government && p.government.code) window.__govCodes[p.id] = p.government.code;
-} catch (e) {} };
-const isList = u => /project\/search/.test(u || '');
-const of = window.fetch;
-window.fetch = function() { const p = of.apply(this, arguments);
-  p.then(r => { if (isList(r.url)) r.clone().text().then(take).catch(() => {}); }).catch(() => {}); return p; };
-const oo = XMLHttpRequest.prototype.open, os = XMLHttpRequest.prototype.send;
-XMLHttpRequest.prototype.open = function(m, u) { this.__u = u; return oo.apply(this, arguments); };
-XMLHttpRequest.prototype.send = function() {
-  this.addEventListener('load', () => { if (isList(this.__u)) take(this.responseText); });
-  return os.apply(this, arguments); };
-return true;
-"""
-
-# Finds the opportunities table by its header text (not by class), and returns one
-# {header -> cell text} map per body row.
-_READ_TABLE_JS = r"""
-const norm = s => (s || '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
-const tables = [...document.querySelectorAll('table, [role=table], [role=grid]')];
-for (const t of tables) {
-  const hs = [...t.querySelectorAll('thead th, [role=columnheader]')];
-  const headers = hs.map(h => norm(h.innerText));
-  if (!(headers.some(h => /due/i.test(h)) && headers.some(h => /status/i.test(h)))) continue;
-  const out = [];
-  const ORIGIN = 'https://procurement.opengov.com';
-  const URL_RE = /\/portal\/[^\/\s"']+\/projects\/\d+/;
-  const absolute = u => u.startsWith('http') ? u : ORIGIN + (u.startsWith('/') ? '' : '/') + u;
-  // A real href / data attribute first; otherwise the project id from the row's
-  // React props joined with the agency slug the data feed supplied.
-  function findLink(row) {
-    for (const el of row.querySelectorAll('a, [data-href], [data-url], [data-link]')) {
-      for (const v of [el.getAttribute('href'), el.getAttribute('data-href'), el.getAttribute('data-url'), el.getAttribute('data-link')]) {
-        const m = v && v.match(URL_RE); if (m) return absolute(m[0]);
+# Reads the rows currently rendered by the grid, keyed by the column header text.
+# AG Grid virtualises rows, so the caller scrolls and merges by row-index. Cells
+# of pinned and scrolling column groups share a row-index and are joined here.
+_READ_GRID_JS = r"""
+const norm = s => (s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+const ORIGIN = location.origin;
+const absolute = u => u.startsWith('http') ? u : ORIGIN + (u.startsWith('/') ? '' : '/') + u;
+const grid = document.querySelector("[data-testid='opportunity-directory-grid']") || document;
+const headers = {};
+grid.querySelectorAll('.ag-header-cell[col-id]').forEach(h => {
+  const t = norm((h.querySelector('.ag-header-cell-text') || h).innerText);
+  if (t) headers[h.getAttribute('col-id')] = t;
+});
+if (!Object.keys(headers).length) return null;
+// Cell text without status chips ("Open") and other badges.
+const cellText = c => {
+  const k = c.cloneNode(true);
+  k.querySelectorAll('.MuiChip-root, [data-testid="status-chip-container"]').forEach(e => e.remove());
+  return norm(k.innerText);
+};
+const OPP_RE = /\/opportunities\/(\d+)/;
+// 1) a real link; 2) the row's data object (React props); 3) a numeric row-id.
+function findId(r) {
+  for (const el of r.querySelectorAll('a[href], [data-href]')) {
+    const m = (el.getAttribute('href') || el.getAttribute('data-href') || '').match(OPP_RE);
+    if (m) return m[1];
+  }
+  const fk = Object.keys(r).find(k => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
+  let f = fk ? r[fk] : null;
+  for (let i = 0; f && i < 40; i++, f = f.return) {
+    const p = f.memoizedProps || {};
+    const cands = [p.data, p.original, p.rowData, p.node && p.node.data,
+                   p.rowNode && p.rowNode.data, p.rowCtrl && p.rowCtrl.rowNode && p.rowCtrl.rowNode.data,
+                   p.params && p.params.data];
+    for (const d of cands) {
+      if (d && typeof d === 'object') {
+        const v = d.opportunityId ?? d.projectId ?? d.id;
+        if (v != null && /^\d+$/.test(String(v))) return String(v);
       }
     }
-    // The table drops the agency slug, but the data feed the page itself loaded
-    // has it (government.code). _TAP_JS recorded id -> slug as pages came in.
-    const start = row.querySelector('a') || row;
-    const fk = Object.keys(start).find(k => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
-    let fiber = fk ? start[fk] : null;
-    for (let i = 0; fiber && i < 30; i++, fiber = fiber.return) {
-      const orig = fiber.memoizedProps && fiber.memoizedProps.original;
-      if (orig && orig.id != null) {
-        const code = (window.__govCodes || {})[orig.id];
-        return code ? ORIGIN + '/portal/' + code + '/projects/' + orig.id : null;
-      }
-    }
-    return null;
   }
-  for (const row of t.querySelectorAll('tbody tr, [role=row]')) {
-    const cells = [...row.querySelectorAll(':scope > td, :scope > [role=cell], :scope > [role=gridcell]')];
-    if (!cells.length) continue;
-    const offset = Math.max(0, cells.length - headers.length);
-    const rec = {};
-    headers.forEach((h, i) => { const c = cells[i + offset]; if (c && h) rec[h] = norm(c.innerText); });
-    out.push({cells: rec, link: findLink(row), html: out.length ? null : row.outerHTML.slice(0, 6000)});
-  }
-  return out;
+  const rid = r.getAttribute('row-id');
+  if (rid && /^\d+$/.test(rid)) return rid;
+  return null;
 }
-return null;
+const rows = {};
+grid.querySelectorAll('.ag-row[row-index]').forEach(r => {
+  const idx = r.getAttribute('row-index');
+  const rec = rows[idx] || (rows[idx] = {index: +idx, cells: {}, link: null, html: null, status: null});
+  if (!rec.status) {
+    const chip = r.querySelector('[data-testid="status-chip-container"] .MuiChip-label, .MuiChip-label');
+    if (chip) rec.status = norm(chip.innerText);
+  }
+  r.querySelectorAll('[col-id]').forEach(c => {
+    const h = headers[c.getAttribute('col-id')];
+    if (h && !rec.cells[h]) rec.cells[h] = cellText(c);
+  });
+  if (!rec.link) { const id = findId(r); if (id) rec.link = ORIGIN + '/opportunities/' + id; }
+  if (!rec.html && +idx === 0) rec.html = r.outerHTML.slice(0, 6000);
+  rec.headers = Object.values(headers);
+});
+return Object.values(rows).filter(r => Object.values(r.cells).some(v => v));
 """
+
+# Scrolls the grid's body (vertical) by `step` px; returns [scrollTop, maxScroll].
+_SCROLL_GRID_JS = r"""
+const grid = document.querySelector("[data-testid='opportunity-directory-grid']") || document;
+const vp = grid.querySelector('.ag-body-viewport');
+if (!vp) return [0, 0];
+if (arguments[0] === 0) vp.scrollTop = 0; else vp.scrollTop += arguments[0];
+return [vp.scrollTop, vp.scrollHeight - vp.clientHeight];
+"""
+
+
+_DUE_SPLIT = re.compile(r"^\s*([A-Za-z]{3,9}\.?\s+\d{1,2},\s*\d{4})\s*(.*)$")
+
+
+def split_due(raw: str | None) -> tuple[str | None, str | None]:
+    """"Dec 7, 202613 days" -> ("Dec 7, 2026", "13 days"). The date and the
+    time-left share one cell; if the text doesn't fit that shape it is kept
+    whole as the due date."""
+    text = (raw or "").strip()
+    m = _DUE_SPLIT.match(text)
+    if not m:
+        return (text or None), None
+    return m.group(1).strip(), (m.group(2).strip() or None)
 
 
 _ROW_DATE_FORMATS = ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d", "%b %d, %Y", "%B %d, %Y")
@@ -183,24 +216,26 @@ class OpenGovLoginError(Exception):
 
 
 def _field_for_header(header: str) -> str | None:
-    h = header.lower()
+    h = header.lower().strip()
+    if "project id" in h or h in ("id", "project #", "project no", "project number"):
+        return "project_id"
     if "organization" in h or "agency" in h:
         return "organization"
-    if "state" in h:
+    if h == "state" or h.startswith("state "):
         return "state"
     if "status" in h:
         return "status"
     if "release" in h or "posted" in h or "publish" in h:
         return "release_date"
-    if "due" in h or "close" in h:
+    if "due" in h or "close" in h or "time left" in h:
         return "due_date"
-    if "title" in h or h.strip() in ("project", "project name", "name"):
+    if "title" in h or h in ("project", "project name", "name"):
         return "project_title"
     return None
 
 
 class OpenGovScraper(BaseScraper):
-    """One run: sign in, read every current opportunity, and package the sheet."""
+    """One run: sign in, read every current solicitation, and package the sheet."""
 
     def __init__(self, run_id: str, date_range: PostingDateRange | None = None):
         super().__init__(run_id)
@@ -260,28 +295,62 @@ class OpenGovScraper(BaseScraper):
 
         try:
             self.wait(LOGIN_TIMEOUT).until(
-                lambda d: d.find_elements(By.CSS_SELECTOR, NETWORK_LINK)
+                lambda d: d.find_elements(By.XPATH, OPPORTUNITIES_XPATH)
             )
         except TimeoutException:
             self.screenshot("login_failed")
             raise OpenGovLoginError(
-                "OpenGov login did not complete — the dashboard's Network menu never "
+                "OpenGov login did not complete — the dashboard's Opportunities menu never "
                 "appeared. Check OPENGOV_EMAIL / OPENGOV_PASSWORD in server/.env."
             )
         logger.info("[run %s] login successful; landed on %s", self.run_id, self.driver.current_url)
 
     # -- the opportunities table ---------------------------------------------------
 
-    def open_network(self) -> None:
-        self.set_step("opening_network")
-        self.driver.execute_script(_TAP_JS)  # before the list loads, so its feed is seen
-        link = self.wait(30).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, NETWORK_LINK))
+    def open_opportunities(self) -> None:
+        self.set_step("opening_opportunities")
+        label = self.wait(30).until(
+            EC.presence_of_element_located((By.XPATH, OPPORTUNITIES_XPATH))
         )
-        self._safe_click(link)
+        target = self.driver.execute_script(
+            "return arguments[0].closest('a, button, [role=button], li') || arguments[0];", label
+        )
+        self._safe_click(target)
 
     def _read_table(self) -> list[dict[str, Any]] | None:
-        return self.driver.execute_script(_READ_TABLE_JS)
+        return self._read_grid()
+
+    def _read_grid(self) -> list[dict[str, Any]] | None:
+        """Every row of the current page. The grid only renders the rows in view,
+        so scroll it top to bottom and merge by row-index."""
+        merged: dict[int, dict[str, Any]] = {}
+        header_seen = False
+        self.driver.execute_script(_SCROLL_GRID_JS, 0)
+        time.sleep(0.4)
+        for _ in range(400):
+            rows = self.driver.execute_script(_READ_GRID_JS)
+            if rows is not None:
+                header_seen = True
+                for r in rows:
+                    cur = merged.setdefault(r["index"], r)
+                    if not cur.get("link") and r.get("link"):
+                        cur["link"] = r["link"]
+                    if not cur.get("status") and r.get("status"):
+                        cur["status"] = r["status"]
+                    if not cur.get("html") and r.get("html"):
+                        cur["html"] = r["html"]
+            top, limit = self.driver.execute_script(_SCROLL_GRID_JS, 400)
+            time.sleep(0.25)
+            if top >= limit:
+                rows = self.driver.execute_script(_READ_GRID_JS) or []
+                for r in rows:
+                    cur = merged.setdefault(r["index"], r)
+                    if not cur.get("link") and r.get("link"):
+                        cur["link"] = r["link"]
+                break
+        if not header_seen:
+            return None
+        return [merged[i] for i in sorted(merged)]
 
     def _await_table(self) -> list[dict[str, Any]]:
         self.set_step("waiting_for_table")
@@ -300,7 +369,7 @@ class OpenGovScraper(BaseScraper):
             if rows is not None:  # table found, no rows: a genuine empty list
                 return []
             raise OpenGovLoginError(
-                "OpenGov: the Current Opportunities table never appeared "
+                "OpenGov: the Current Solicitations table never appeared "
                 "(a page dump was saved to the run folder)."
             )
         return rows or []
@@ -319,60 +388,70 @@ class OpenGovScraper(BaseScraper):
             field = _field_for_header(header)
             if field and not record.get(field):
                 record[field] = value
+        if record.get("due_date"):
+            record["due_date"], record["days_remaining"] = split_due(record["due_date"])
+        if not record.get("status") and row.get("status"):
+            record["status"] = row["status"]  # the green Open/Closed chip
         return record
 
-    # -- list state (ReactTable) -----------------------------------------------------
+    # -- list state (AG Grid) ----------------------------------------------------------
 
     def _await_idle(self) -> None:
-        """Wait out the table's "Loading..." overlay."""
+        """Wait out the grid's loading overlay."""
         try:
             self.wait(TABLE_TIMEOUT).until(
-                lambda d: not d.find_elements(By.CSS_SELECTOR, LOADING_CSS)
+                lambda d: not any(e.is_displayed() for e in d.find_elements(By.CSS_SELECTOR, LOADING_CSS))
             )
         except TimeoutException:
             pass
 
-    def _current_page(self) -> int:
-        els = self.driver.find_elements(By.CSS_SELECTOR, PAGE_INPUT_CSS)
-        try:
-            return int(els[0].get_attribute("value")) if els else 1
-        except (TypeError, ValueError):
-            return 1
-
-    def _total_pages(self) -> int:
-        els = self.driver.find_elements(By.CSS_SELECTOR, TOTAL_PAGES_CSS)
-        try:
-            return int(els[0].text.strip()) if els else 1
-        except ValueError:
-            return 1
+    def _first_row_signature(self) -> str:
+        self.driver.execute_script(_SCROLL_GRID_JS, 0)
+        rows = self.driver.execute_script(_READ_GRID_JS) or []
+        rows = sorted(rows, key=lambda r: r["index"])
+        return "|".join(rows[0]["cells"].values()) if rows else ""
 
     def _set_page_size(self) -> None:
-        """Show 20 rows per page. Changing it resets the table to page 1."""
+        """Show 100 rows per page. Changing it resets the grid to page 1."""
         from selenium.webdriver.support.ui import Select
 
-        els = self.driver.find_elements(By.CSS_SELECTOR, PAGE_SIZE_CSS)
+        els = self.driver.find_elements(By.XPATH, PAGE_SIZE_XPATH) or \
+            self.driver.find_elements(By.CSS_SELECTOR, PAGE_SIZE_FALLBACK_CSS)
+        els = [e for e in els if e.is_displayed()]
         if not els:
+            logger.warning("[run %s] page-size control not found; using the default size", self.run_id)
+            self._dump_page("no_page_size")
             return
-        select = Select(els[0])
-        if select.first_selected_option.get_attribute("value") != PAGE_SIZE:
-            select.select_by_value(PAGE_SIZE)
-            self._await_idle()
-            time.sleep(SETTLE_SECONDS)
-
-    def _go_to_page(self, page: int) -> None:
-        if self._current_page() == page:
-            return
-        box = self.driver.find_element(By.CSS_SELECTOR, PAGE_INPUT_CSS)
-        box.click()
-        box.send_keys(Keys.CONTROL, "a")
-        box.send_keys(str(page), Keys.RETURN)
-        self.wait(PAGE_TURN_TIMEOUT).until(lambda d: self._current_page() == page)
+        control = els[-1]
+        self.scroll_into_view(control)
+        if control.tag_name.lower() == "select":
+            select = Select(control)
+            if select.first_selected_option.get_attribute("value") != PAGE_SIZE:
+                select.select_by_value(PAGE_SIZE)
+        else:
+            if PAGE_SIZE in (control.text or ""):
+                return
+            self._safe_click(control)
+            try:
+                option = self.wait(10).until(lambda d: next(
+                    (o for o in d.find_elements(By.CSS_SELECTOR, OPTION_CSS)
+                     if o.is_displayed() and o.text.strip() == PAGE_SIZE), None))
+            except TimeoutException:
+                logger.warning("[run %s] no %s option in the page-size list", self.run_id, PAGE_SIZE)
+                self._dump_page("no_page_size_option")
+                return
+            self._safe_click(option)
         self._await_idle()
         time.sleep(SETTLE_SECONDS)
 
     def _next_enabled(self):
         for el in self.driver.find_elements(By.CSS_SELECTOR, NEXT_BUTTON_CSS):
-            if el.is_displayed() and el.get_attribute("disabled") is None:
+            if not el.is_displayed():
+                continue
+            disabled = el.get_attribute("disabled") is not None or \
+                el.get_attribute("aria-disabled") == "true" or \
+                "ag-disabled" in (el.get_attribute("class") or "")
+            if not disabled:
                 return el
         return None
 
@@ -381,13 +460,14 @@ class OpenGovScraper(BaseScraper):
     def scrape_all_pages(self) -> None:
         self._await_table()
         self._set_page_size()
-        total = self._total_pages()
-        logger.info("[run %s] %d page(s) at %s rows each", self.run_id, total, PAGE_SIZE)
+        total = "?"
 
         for page in range(1, MAX_PAGES + 1):
             self.raise_if_stopped()
             rows = self._read_table() or []
-            logger.info("[run %s] page %d/%d: %d row(s)", self.run_id, page, total, len(rows))
+            if page == 1 and rows:
+                logger.info("[run %s] grid columns: %s", self.run_id, rows[0].get("headers"))
+            logger.info("[run %s] page %d/%s: %d row(s)", self.run_id, page, total, len(rows))
             for index, row in enumerate(rows):
                 self.raise_if_stopped()
                 record = self._record_from_row(row)
@@ -410,7 +490,7 @@ class OpenGovScraper(BaseScraper):
                         continue
                 run_manager.update_run(
                     self.run_id,
-                    step=f"page {page}/{total}, row {index + 1}/{len(rows)}: "
+                    step=f"page {page}, row {index + 1}/{len(rows)}: "
                          f"{record.get('project_title') or ''}"[:120],
                 )
                 record.update(evaluation.evaluate(record))
@@ -422,10 +502,11 @@ class OpenGovScraper(BaseScraper):
             nxt = self._next_enabled()
             if nxt is None:
                 break
+            before = self._first_row_signature()
             self.scroll_into_view(nxt)
             self._safe_click(nxt)
             try:
-                self.wait(PAGE_TURN_TIMEOUT).until(lambda d: self._current_page() == page + 1)
+                self.wait(PAGE_TURN_TIMEOUT).until(lambda d: self._first_row_signature() != before)
             except TimeoutException:
                 logger.warning("[run %s] Next did not advance past page %d", self.run_id, page)
                 break
@@ -466,7 +547,7 @@ class OpenGovScraper(BaseScraper):
         try:
             self.start_driver()
             self.login()
-            self.open_network()
+            self.open_opportunities()
             self.scrape_all_pages()
             if self.date_range.is_set:
                 run_manager.update_run(

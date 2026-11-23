@@ -64,6 +64,7 @@ EXCEL_COLUMNS: list[tuple[str, str]] = [
     ("status", "Status"),
     ("release_date", "Release Date"),
     ("due_date", "Due Date"),
+    ("days_remaining", "Days Remaining"),
     # Pass/Reject qualification, same logic as the PHL sheet. The verdict is
     # stored in `raw_data`; a niche-flagged title is shown as REJECT.
     ("decision", "Evaluation Status"),
@@ -71,4 +72,4 @@ EXCEL_COLUMNS: list[tuple[str, str]] = [
 ]
 
 #: Columns that are not real DB columns on `OpenGovBid`.
-DERIVED_COLUMNS = {"decision"}
+DERIVED_COLUMNS = {"decision", "days_remaining"}

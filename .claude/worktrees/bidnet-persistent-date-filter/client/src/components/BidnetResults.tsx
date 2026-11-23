@@ -1,0 +1,71 @@
+"use client";
+
+import type { BidResult } from "@/lib/api";
+import { DataTable, DocStatus } from "@/components/ui";
+
+export default function BidnetResults({ bids }: { bids: BidResult[] }) {
+  if (bids.length === 0) return null;
+
+  return (
+    <DataTable
+      caption={`Results · ${bids.length} ${bids.length === 1 ? "solicitation" : "solicitations"}`}
+      headers={[
+        { label: "Reference #" },
+        { label: "Title" },
+        { label: "Matched keyword" },
+        { label: "Type" },
+        { label: "Closing" },
+        { label: "Documents", className: "text-center" },
+        { label: "Status" },
+      ]}
+    >
+      {/* The index is part of the key because a reference number is neither
+          present nor unique: the scraper stores "" for a field it could not read
+          off the detail page, and the same solicitation is listed once per
+          niche+tier group that surfaced it. `||` rather than `??` throughout for
+          the same reason — an unread field is "", which `??` would let through
+          as a blank cell. */}
+      {bids.map((bid, i) => (
+        <tr key={`${bid.reference_number || "row"}-${i}`} className="transition hover:bg-ink-50">
+          <td className="whitespace-nowrap px-4 py-3 font-mono text-xs font-medium text-ink-900">
+            {bid.reference_number || "—"}
+          </td>
+          <td className="max-w-xs truncate px-4 py-3 text-ink-700" title={bid.title ?? ""}>
+            {bid.title || "—"}
+          </td>
+          <td className="px-4 py-3">
+            {bid.matched_keyword ? (
+              <span className="whitespace-nowrap rounded-full border border-gold-200 bg-gold-50 px-2 py-0.5 text-xs font-medium text-gold-700">
+                {bid.matched_keyword}
+              </span>
+            ) : (
+              <span className="text-ink-400">—</span>
+            )}
+          </td>
+          <td className="whitespace-nowrap px-4 py-3 text-xs text-ink-600">{bid.solicitation_type || "—"}</td>
+          <td className="tabular whitespace-nowrap px-4 py-3 text-xs text-ink-600">{bid.closing_date || "—"}</td>
+          <td className="tabular px-4 py-3 text-center text-ink-600">{bid.documents?.length ?? 0}</td>
+          <td className="px-4 py-3">
+            {/* A bid whose detail page could not be read is kept and flagged
+                rather than dropped, so say so here — the documents indicator
+                alone would make it look like an ordinary bid with no files. */}
+            {bid.status && bid.status !== "OK" ? (
+              <span
+                title={bid.error ?? bid.status}
+                className="whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+              >
+                {bid.status === "EXTRACTION_FAILED" ? "Not readable" : "Partial"}
+              </span>
+            ) : bid.error ? (
+              <DocStatus state="failed" title={bid.error} />
+            ) : bid.documents?.length ? (
+              <DocStatus state="ok" />
+            ) : (
+              <DocStatus state="empty" />
+            )}
+          </td>
+        </tr>
+      ))}
+    </DataTable>
+  );
+}

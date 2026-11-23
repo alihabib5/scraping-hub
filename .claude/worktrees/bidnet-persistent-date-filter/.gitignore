@@ -1,0 +1,44 @@
+# Python / server
+server/.venv/
+server/documents/
+data/
+__pycache__/
+*.pyc
+
+# Node / client
+client/node_modules/
+client/.next/
+client/out/
+
+# Environment
+.env
+.env.local
+server/.env
+client/.env
+
+# Planning / reference docs
+plan.md
+plan_*.md
+BidNet_Direct_Keyword_Reference.docx
+
+# Editors / local tooling
+.vscode/
+.idea/
+.claude/settings.local.json
+
+# sn-scriptsync (ServiceNow VS Code extension) — regenerated on every start
+agentrules/
+autocomplete/
+agentinstructions.md
+jsconfig.json
+
+# Caches
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.tsbuildinfo
+
+# Misc
+.DS_Store
+*.log

@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+/**
+ * Editorial palette: a warm paper canvas, deep navy ink, and gold reserved for
+ * accents. Navy carries every primary action; gold is punctuation — rules,
+ * marks, active states — never large fills, which is what makes it read as
+ * premium rather than gaudy.
+ */
+@theme {
+  --color-ink-950: #061224;
+  --color-ink-900: #0b1f3a;
+  --color-ink-800: #14304f;
+  --color-ink-700: #1f4269;
+  --color-ink-600: #325a83;
+  --color-ink-500: #55779b;
+  --color-ink-400: #8399b3;
+  --color-ink-300: #b3c2d2;
+  --color-ink-200: #d6dfe8;
+  --color-ink-100: #e9eff4;
+  --color-ink-50: #f4f7fa;
+
+  --color-gold-700: #7d5620;
+  --color-gold-600: #99692a;
+  --color-gold-500: #b9873c;
+  --color-gold-400: #d2a55c;
+  --color-gold-300: #e4c48e;
+  --color-gold-200: #f0dcbb;
+  --color-gold-100: #f7edda;
+  --color-gold-50: #fcf8f0;
+
+  /* Warm neutrals — a paper canvas rather than a cool grey one. */
+  --color-paper: #faf9f6;
+  --color-paper-dim: #f3f1ec;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display-serif);
+}
+
+html {
+  color-scheme: light;
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  color: var(--color-ink-900);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--color-paper);
+}
+
+/* Display type: tighter tracking and optical sizing for large editorial text. */
+.font-display {
+  font-family: var(--font-display-serif), ui-serif, Georgia, serif;
+  font-variation-settings: "opsz" 40;
+  letter-spacing: -0.015em;
+}
+
+/* Numbers that line up column-to-column. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Small caps-ish eyebrow used above section headings. */
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-300) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-ink-300);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-400);
+}
+
+::selection {
+  background: var(--color-gold-200);
+  color: var(--color-ink-900);
+}
+
+/* Nav strips scroll on narrow screens; the bar itself would be visual noise. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Indeterminate bar shown while a run is in flight. */
+@keyframes progress-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+.progress-slide {
+  animation: progress-slide 1.6s ease-in-out infinite;
+}
+
+/* Soft pulse on the "live" dot of an active run. */
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.88);
+  }
+}
+.status-pulse {
+  animation: status-pulse 1.8s ease-in-out infinite;
+}
+
+/* Panels fade up as the user moves between views. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise-in {
+  animation: rise-in 0.28s ease-out both;
+}
+
+/* Landing: staggered entrance. Delay is set inline per element. */
+.reveal {
+  animation: rise-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-slide,
+  .status-pulse,
+  .rise-in,
+  .reveal {
+    animation: none;
+  }
+}

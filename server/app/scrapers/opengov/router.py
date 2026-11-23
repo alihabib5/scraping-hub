@@ -88,7 +88,8 @@ def scrape_runs() -> dict:
 
 
 def _bid_to_dict(bid: OpenGovBid) -> dict:
-    data = {attr: getattr(bid, attr) for attr, _ in EXCEL_COLUMNS}
+    raw = bid.raw_data or {}
+    data = {attr: getattr(bid, attr, None) or raw.get(attr) for attr, _ in EXCEL_COLUMNS}
     data.update(id=bid.id, run_id=bid.run_id)
     return data
 
