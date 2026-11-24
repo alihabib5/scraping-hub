@@ -113,3 +113,35 @@ export async function accountName(email: string): Promise<string> {
   const [row] = await sql<{ name: string }[]>`select name from hub_accounts where email = ${normalEmail(email)}`;
   return row?.name ?? email;
 }
+
+/** One sign-in in the Windows app, with who it was. */
+export interface SessionRow {
+  id: string;
+  email: string;
+  name: string;
+  ip: string | null;
+  started_at: Date;
+  last_seen_at: Date;
+  ended_at: Date | null;
+}
+
+export const SESSIONS_PER_PAGE = 50;
+
+/** Every session, newest first; `email` narrows it to one person. A removed account's sessions go with it. */
+export function listSessions(email: string | null, page: number) {
+  const who = email ? normalEmail(email) : null;
+  return sql<SessionRow[]>`
+    select s.id, s.email, a.name, s.ip, s.started_at, s.last_seen_at, s.ended_at
+    from hub_sessions s join hub_accounts a on a.email = s.email
+    where (${who}::text is null or s.email = ${who})
+    order by s.started_at desc
+    limit ${SESSIONS_PER_PAGE + 1} offset ${Math.max(0, page - 1) * SESSIONS_PER_PAGE}`;
+}
+
+/** Totals for the page's status line: all sessions, and those started in the last 7 days. */
+export function sessionCounts(email: string | null) {
+  const who = email ? normalEmail(email) : null;
+  return sql<{ total: number; week: number }[]>`
+    select count(*)::int as total, count(*) filter (where started_at > now() - interval '7 days')::int as week
+    from hub_sessions where (${who}::text is null or email = ${who})`.then((r) => r[0]);
+}
