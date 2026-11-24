@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { removeAccount } from "@/app/actions";
 import Avatar from "@/components/Avatar";
 import ConfirmButton from "@/components/ConfirmButton";
@@ -62,7 +64,13 @@ export default async function UsersPage() {
                     <Avatar name={u.name} tone={u.email === admin ? "gold" : "ink"} />
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-ink-900">
-                        {u.name}
+                        <Link
+                          href={`/sessions?email=${encodeURIComponent(u.email)}`}
+                          className="underline-offset-4 hover:underline"
+                          title={`${u.name}'s session history`}
+                        >
+                          {u.name}
+                        </Link>
                         {u.email === admin && (
                           <span className="ml-2 rounded-full bg-gold-50 px-2 py-0.5 text-[11px] font-semibold text-gold-600 ring-1 ring-gold-100">You</span>
                         )}

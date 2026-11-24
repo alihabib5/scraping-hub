@@ -22,6 +22,13 @@ const ICONS = {
       <path d="M10 6v4.2l2.8 1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  history: (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className={icon} aria-hidden>
+      <path d="M3.5 10a6.5 6.5 0 1 0 1.9-4.6" strokeLinecap="round" />
+      <path d="M3.25 3.5v3h3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 6.75v3.5l2.25 1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   encryptor: (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className={icon} aria-hidden>
       <rect x="4" y="8.5" width="12" height="8.5" rx="1.75" />
@@ -40,6 +47,7 @@ const ICONS = {
 const NAV = [
   { href: "/", label: "Users", icon: ICONS.users },
   { href: "/pending", label: "Pending Approvals", icon: ICONS.pending },
+  { href: "/sessions", label: "Session History", icon: ICONS.history },
   { href: "/encryptor", label: "Encryptor", icon: ICONS.encryptor },
 ] as const;
 
