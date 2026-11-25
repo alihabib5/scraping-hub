@@ -4,7 +4,7 @@ EMMA is Maryland's procurement portal on the Ivalua platform — the same produc
 behind North Dakota's ND Buys (every control carries data-iv-* attributes).
 Unlike ND, the login is a plain form directly on the page: Email/Username
 (#body_x_txtLogin), Password (#body_x_txtPass) and a Log in submit button
-(#body_x_btnLogin) — no OAuth/B2C redirect, so no CAPTCHA interception either.
+(#body_x_btnLogin) — no OAuth/B2C redirect.
 The page encrypts the password into a hidden `crypted_pass` input on submit,
 which is why the real Log in button must be clicked (never a bare form.submit).
 
@@ -15,6 +15,16 @@ Flow: sign in -> open the "Sourcing" nav dropdown and click "Public Solicitation
 date range, if one was given (see `publish_window_verdict`) -> keep only
 solicitations still >= 7 days from close (shared closing_filter) -> screen every bid against the keyword blocklist (see
 `evaluation`) -> persist the ones that pass -> build one Excel from the DB.
+
+EMMA's browser check. Mid-run (18 Nov) EMMA began answering bid pages with
+"Please wait while we are checking your browser" and an "I'm not a robot" box.
+That page has none of the bid's fields, so a bid read through it used to be
+screened on its title alone and pass: 11 of 13 "passes" in one run were never
+read. Now a bid page counts as read only once its fields are on it. The run
+waits for the check to clear (it often clears itself; with Live Preview a
+person can tick the box), then retries once in a fresh browser; a bid it still
+cannot read is reported as NOT READ and kept out of the Excel. After
+MAX_UNREAD_IN_A_ROW of those in a row the run stops opening pages.
 
 Screening runs in two stages, which is what makes a run affordable. The first
 sees only the grid fields the search already returned, so a bid rejected on its
@@ -97,6 +107,11 @@ DOC_GRID_ID = "body_x_tabc_rfp_ext_prxrfp_ext_x_prxDoc_x_grid_grd"
 DOC_ROW_CSS = f"#{DOC_GRID_ID} tbody tr[data-id]"
 DOC_LINK_CSS = f"#{DOC_GRID_ID} a[href*='/fil/download/']"
 DOC_GRID_WAIT = 20        # seconds to wait for the documents grid to populate
+DETAIL_FIELDS_WAIT = 15   # seconds for a bid page's fields to appear before it counts as unread
+BROWSER_CHECK_WAIT = 90   # seconds to let EMMA's browser check clear (or a person tick it)
+MAX_UNREAD_IN_A_ROW = 3   # unread bids in a row before the run stops opening pages
+DOWNLOAD_STALL_S = 60     # a document with no new bytes for this long is tried once more
+NOT_READ = "NOT READ"     # the decision for a bid whose page could not be read
 # Recycle the browser proactively every N solicitations during the document
 # crawl, so a long headless session doesn't grow until Chrome is OOM-killed.
 RECYCLE_EVERY = 75
@@ -138,6 +153,20 @@ _JS_SCRAPE = """
     }
     return out;
 """
+
+# EMMA's browser check: its wording, or the reCAPTCHA frame ("I'm not a robot"
+# lives inside the iframe, so the page's own text does not contain it).
+_JS_BROWSER_CHECK = """
+    const t = ((document.body && document.body.innerText) || '').toLowerCase();
+    return t.includes('checking your browser')
+        || t.includes("i'm not a robot") || t.includes('i\\u2019m not a robot')
+        || !!document.querySelector("iframe[src*='recaptcha'], .g-recaptcha");
+"""
+
+
+class BidPageNotRead(Exception):
+    """A bid's page opened without its content (EMMA's browser check, or a page
+    with none of the bid's fields), so the bid cannot be screened."""
 
 
 def publish_window_verdict(raw: str | None, window: PostingDateRange) -> str:
@@ -205,6 +234,10 @@ class EmmaScraper(BaseScraper):
         # Set when paging stopped because the grid proved newest-first and a
         # whole page was already older than the range's start.
         self._stopped_paging_early = False
+        # Bids whose page could not be read (see BidPageNotRead), by code.
+        self._not_read: list[str] = []
+        # Whether the run has already said EMMA is showing its browser check.
+        self._check_reported = False
 
     # -- helpers ------------------------------------------------------------
 
@@ -305,6 +338,49 @@ class EmmaScraper(BaseScraper):
         except Exception:  # noqa: BLE001 — diagnostics must never break the run
             pass
 
+    def _browser_check_showing(self) -> bool:
+        try:
+            return bool(self.driver.execute_script(_JS_BROWSER_CHECK))
+        except WebDriverException:
+            return False
+
+    def _wait_past_browser_check(self, timeout: int = BROWSER_CHECK_WAIT) -> bool:
+        """True once EMMA's browser check is not on screen (at once if it never
+        was); False if it is still there after `timeout` seconds."""
+        if not self._browser_check_showing():
+            return True
+        logger.warning("[run %s] EMMA is showing its browser check; waiting up to %ss", self.run_id, timeout)
+        if not self._check_reported:
+            self._check_reported = True
+            self.screenshot("browser_check")
+            self._dump_page("browser_check")
+            run_manager.add_warning(
+                self.run_id,
+                "EMMA showed its browser check (\"I'm not a robot\"). With Live Preview on, "
+                "tick the box in the browser and the run carries on.",
+            )
+        step = (run_manager.get_run(self.run_id) or {}).get("step")
+        self.set_step("waiting_for_browser_check")
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            self.raise_if_stopped()
+            time.sleep(2)
+            if not self._browser_check_showing():
+                logger.info("[run %s] the browser check cleared", self.run_id)
+                if step:
+                    self.set_step(step)
+                return True
+        return False
+
+    def _mark_not_read(self, rec: dict[str, Any], code: str, reason: str) -> None:
+        """Record that a bid could not be read; it is kept out of the passes."""
+        rec.update(decision=NOT_READ, not_read_reason=reason)
+        folder = rec.pop("_bid_folder", None)
+        if folder:
+            shutil.rmtree(folder, ignore_errors=True)
+        self._not_read.append(code)
+        logger.warning("[run %s] %s NOT READ: %s", self.run_id, code, reason)
+
     # -- login --------------------------------------------------------------
 
     def login(self) -> None:
@@ -322,6 +398,7 @@ class EmmaScraper(BaseScraper):
         # some ISP resolvers answer with an empty record set — so the first lookup
         # can fail even though the host is reachable. navigate() retries those.
         self.navigate(url)
+        self._wait_past_browser_check()
 
         try:
             user_field = self.wait(LOGIN_REDIRECT_WAIT).until(
@@ -704,6 +781,7 @@ class EmmaScraper(BaseScraper):
         self.set_step("downloading_documents")
         total = 0
         since_recycle = 0
+        unread_in_a_row = 0
         for index, rec in enumerate(self._records, start=1):
             self.raise_if_stopped()  # a long doc crawl must respond to Stop
             url = rec.get("detail_url")
@@ -735,6 +813,32 @@ class EmmaScraper(BaseScraper):
                 names = self._download_solicitation_docs(url, rec)
             except StopRequested:
                 raise  # user Stop — let it unwind, never treat it as a doc failure
+            except BidPageNotRead as blocked:
+                # Usually EMMA's browser check. A fresh browser (new session, new
+                # sign-in) often gets past it; if not, the bid is NOT READ.
+                logger.warning("[run %s] %s: %s — retrying in a fresh browser", self.run_id, code, blocked)
+                names = None
+                reason = str(blocked)
+                if self._restart_browser():
+                    since_recycle = 0
+                    try:
+                        names = self._download_solicitation_docs(url, rec)
+                    except StopRequested:
+                        raise
+                    except Exception as exc2:  # noqa: BLE001 — any failure here leaves it unread
+                        reason = str(exc2)[:200] or exc2.__class__.__name__
+                else:
+                    reason += "; the browser could not be restarted"
+                if names is None:
+                    self._mark_not_read(rec, code, reason)
+                    unread_in_a_row += 1
+                    if unread_in_a_row >= MAX_UNREAD_IN_A_ROW:
+                        run_manager.add_error(
+                            self.run_id, f"EMMA kept blocking bid pages ({unread_in_a_row} in a row), "
+                            "so the run stopped opening them; the rest are listed as not read",
+                        )
+                        break
+                    continue
             except Exception as exc:  # noqa: BLE001 — classify before deciding
                 if self._is_dead_session_error(exc):
                     # The browser process is gone. Restart + re-login once, then
@@ -767,6 +871,7 @@ class EmmaScraper(BaseScraper):
             rec["documents"] = names
             total += len(names)
             since_recycle += 1
+            unread_in_a_row = 0
 
             # Screen this bid now that its documents are on disk: the blocklist
             # reads the bid's own text and every downloaded document. Rejected
@@ -778,12 +883,14 @@ class EmmaScraper(BaseScraper):
             logger.info("[run %s] %s: %s document(s) (running total %s)",
                         self.run_id, code, len(names), total)
 
-        # A bid the crawl never reached (the browser died, or it had no detail
-        # URL) still gets screened — on its own text alone — so an interrupted
-        # run reports those bids rather than silently dropping them.
+        # A bid the crawl never reached (the browser died, EMMA kept blocking,
+        # or it had no detail URL) is still screened on its own text, which can
+        # reject it. It cannot pass unread, so the rest are reported NOT READ.
         for rec in self._records:
             if not rec.get("decision"):
-                self._screen_bid(rec, rec.get("bpm_code") or rec.get("emma_id") or "bid")
+                code = rec.get("bpm_code") or rec.get("emma_id") or "bid"
+                if self._screen_bid(rec, code, doc_text="", stage="pre") != "REJECT":
+                    self._mark_not_read(rec, code, "its page was never opened")
 
         # Keep only the bids that passed the keyword screen.
         passed = [r for r in self._records if r.get("decision") == "PASS"]
@@ -803,8 +910,16 @@ class EmmaScraper(BaseScraper):
             bids_keyword_checked=checked,
             bids_rejected_before_opening=self._rejected_before_opening,
             bids_rejected_by_keyword=self._rejected_by_keyword,
+            bids_not_read=len(self._not_read),
             bids=[{**r, "error": None} for r in passed[:PREVIEW_LIMIT]],
         )
+        if self._not_read:
+            shown = ", ".join(self._not_read[:20]) + (" …" if len(self._not_read) > 20 else "")
+            run_manager.add_warning(
+                self.run_id,
+                f"{len(self._not_read)} bid(s) could not be read (EMMA's browser check) and are not "
+                f"in the Excel; check them on EMMA or run again later: {shown}",
+            )
         logger.info("[run %s] downloaded %s documents across the kept solicitations", self.run_id, total)
 
     def _screen_bid(
@@ -952,14 +1067,25 @@ class EmmaScraper(BaseScraper):
         """
         self.navigate(url)
         time.sleep(2)  # let the detail form finish rendering its fields
+        if not self._wait_past_browser_check():
+            raise BidPageNotRead("EMMA showed its browser check instead of the bid")
 
         # Capture all of this solicitation's fields (varies per solicitation) so
         # the record — and the Excel/DB — carry the full detail, not just the grid
         # row. Stored under `detail`; also fills any grid column left blank.
+        # Every real bid page has fields, so a page without any was not read, and
+        # its bid must not be screened (it would pass on its title alone).
         detail = self._extract_detail_fields()
-        if detail:
-            rec["detail"] = detail
-            self._backfill_from_detail(rec, detail)
+        deadline = time.monotonic() + DETAIL_FIELDS_WAIT
+        while not detail and time.monotonic() < deadline:
+            time.sleep(1)
+            if not self._wait_past_browser_check():
+                raise BidPageNotRead("EMMA showed its browser check instead of the bid")
+            detail = self._extract_detail_fields()
+        if not detail:
+            raise BidPageNotRead("the bid page opened without any of its fields")
+        rec["detail"] = detail
+        self._backfill_from_detail(rec, detail)
 
         links = self._collect_document_links()
         if not links:
@@ -976,22 +1102,35 @@ class EmmaScraper(BaseScraper):
         saved: list[str] = []
         for filename, href in links:
             self.raise_if_stopped()
-            try:
-                self._clear_staging()
-                # A JS anchor click forces the browser to fetch the file endpoint
-                # as a download without navigating the current tab away.
-                self.driver.execute_script(
-                    "var a=document.createElement('a');a.href=arguments[0];a.download='';"
-                    "document.body.appendChild(a);a.click();a.remove();",
-                    href,
-                )
-                downloaded = self.wait_for_download()
-                dest = self._unique_path(bid_folder / (filename or downloaded.name))
-                shutil.move(str(downloaded), str(dest))
-                saved.append(dest.name)
-            except (TimeoutException, OSError, WebDriverException) as exc:
-                logger.info("[run %s] could not download %r: %s", self.run_id, filename, exc.__class__.__name__)
-                rec.setdefault("document_errors", []).append(f"{filename}: {exc.__class__.__name__}")
+            # A file EMMA stops sending mid-way is given up after DOWNLOAD_STALL_S
+            # with no progress (not the full download timeout) and tried once more.
+            for attempt in (1, 2):
+                try:
+                    self._clear_staging()
+                    # A stuck half-file Windows would not let us delete is ignored.
+                    before = set(self.download_dir.iterdir())
+                    # A JS anchor click forces the browser to fetch the file endpoint
+                    # as a download without navigating the current tab away.
+                    self.driver.execute_script(
+                        "var a=document.createElement('a');a.href=arguments[0];a.download='';"
+                        "document.body.appendChild(a);a.click();a.remove();",
+                        href,
+                    )
+                    downloaded = self.wait_for_download(ignore=before, stall_after=DOWNLOAD_STALL_S)
+                    dest = self._unique_path(bid_folder / (filename or downloaded.name))
+                    shutil.move(str(downloaded), str(dest))
+                    saved.append(dest.name)
+                    break
+                except TimeoutException as exc:
+                    if attempt == 1:
+                        logger.info("[run %s] %r: %s; trying once more", self.run_id, filename, exc.msg)
+                        continue
+                    logger.info("[run %s] could not download %r: %s", self.run_id, filename, exc.msg)
+                    rec.setdefault("document_errors", []).append(f"{filename}: {exc.msg}")
+                except (OSError, WebDriverException) as exc:
+                    logger.info("[run %s] could not download %r: %s", self.run_id, filename, exc.__class__.__name__)
+                    rec.setdefault("document_errors", []).append(f"{filename}: {exc.__class__.__name__}")
+                    break
         return saved
 
     def _collect_document_links(self) -> list[tuple[str, str]]:

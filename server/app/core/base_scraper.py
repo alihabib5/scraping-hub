@@ -118,6 +118,14 @@ def _in_progress(f: Path) -> bool:
     return f.suffix in (".crdownload", ".tmp") or f.name.startswith(".com.google.Chrome.")
 
 
+def _size(f: Path) -> int:
+    """`f`'s size now, or 0 if Chrome renamed or removed it a moment ago."""
+    try:
+        return f.stat().st_size
+    except OSError:
+        return 0
+
+
 def _resolve_chromedriver() -> str:
     """The chromedriver to start Chrome with: the installer's own copy when it
     matches this PC's Chrome (app/core/chromedriver.py), else
@@ -569,7 +577,10 @@ class BaseScraper:
         run_manager.update_run(self.run_id, step=step)
 
     def wait_for_download(
-        self, timeout: int = DOWNLOAD_TIMEOUT, ignore: set[Path] | None = None
+        self,
+        timeout: int = DOWNLOAD_TIMEOUT,
+        ignore: set[Path] | None = None,
+        stall_after: int | None = None,
     ) -> Path:
         """Wait for a new file to fully land in the staging download dir.
 
@@ -583,18 +594,30 @@ class BaseScraper:
         file present, which — in the moment between the click and Chrome opening
         its `.crdownload` — is still the *previous* download. That returns
         immediately, the same file is claimed twice, and the run ends with fewer
-        documents than the page offered.
+        documents than the page offered. A half-written file in `ignore` is a
+        download that already stalled; it is not waited on again.
+
+        `stall_after` gives up early when nothing new has been written for that
+        many seconds (a server that stops sending mid-file would otherwise hold
+        the run for the whole `timeout`). Off by default.
         """
         ignore = ignore or set()
         deadline = time.monotonic() + timeout
+        last_size, last_growth = -1, time.monotonic()
         while time.monotonic() < deadline:
             self.raise_if_stopped()  # don't keep waiting on a download the user cancelled
-            partial = [f for f in self.download_dir.iterdir() if f.is_file() and _in_progress(f)]
-            done = [
-                f for f in self.download_dir.iterdir()
-                if f.is_file() and not _in_progress(f) and f not in ignore
-            ]
+            files = [f for f in self.download_dir.iterdir() if f.is_file() and f not in ignore]
+            partial = [f for f in files if _in_progress(f)]
+            done = [f for f in files if not _in_progress(f)]
             if done and not partial:
                 return max(done, key=lambda f: f.stat().st_mtime)
+            if stall_after is not None:
+                size = sum(_size(f) for f in files)
+                if size != last_size:
+                    last_size, last_growth = size, time.monotonic()
+                elif time.monotonic() - last_growth >= stall_after:
+                    raise TimeoutException(
+                        f"Download stalled: nothing new arrived for {stall_after}s ({size} bytes so far)"
+                    )
             time.sleep(0.5)
         raise TimeoutException(f"Download did not complete within {timeout}s")
