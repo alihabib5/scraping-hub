@@ -69,7 +69,12 @@ class UnisonMarketplaceScraper:
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
 
-        self.driver = webdriver.Chrome(options=options)
+        from selenium.webdriver.chrome.service import Service
+
+        from app.core.base_scraper import _resolve_chromedriver
+
+        # The installer's bundled driver first, as every scraper (Selenium's own download otherwise).
+        self.driver = webdriver.Chrome(service=Service(_resolve_chromedriver()), options=options)
         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         logging.info("WebDriver initialized successfully")
 

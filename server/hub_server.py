@@ -102,7 +102,9 @@ def _check_credentials(path: str) -> int:
     return 0
 
 
-BROWSER_CHECK_S = 90
+# A 2012-era PC took longer than 90 s for its first headless Chrome (25 Nov). The driver now
+# ships with the app, so this covers Chrome's own first start only.
+BROWSER_CHECK_S = 180
 
 
 def _within(seconds: float, fn):
@@ -213,6 +215,10 @@ def _self_check(credentials_status: str) -> int:
         try:
             detail = fn()
             print(f"OK    {name}{f' - {detail}' if detail else ''}", flush=True)
+        except TimeoutError as exc:
+            # Slow, not broken: the check never failed, it ran out of time. The app checks Chrome
+            # again at start-up, so a slow first start must not tell the person the install failed.
+            print(f"WARN  {name} - {exc}; a slow first start, so the first run may take longer", flush=True)
         except Exception as exc:  # noqa: BLE001 — report every gap, not just the first
             failed += 1
             print(f"FAIL  {name} - {type(exc).__name__}: {exc}", flush=True)

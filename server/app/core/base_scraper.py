@@ -119,12 +119,19 @@ def _in_progress(f: Path) -> bool:
 
 
 def _resolve_chromedriver() -> str:
-    """ChromeDriverManager().install(), self-healing a stale wdm lock.
+    """The chromedriver to start Chrome with: the installer's own copy when it
+    matches this PC's Chrome (app/core/chromedriver.py), else
+    ChromeDriverManager().install(), self-healing a stale wdm lock.
 
     Clears clearly-stale locks first; if the resolver still times out on the
     lock, remove it outright and retry once (a concurrent healthy install only
     holds the lock briefly, so a timeout means it is orphaned).
     """
+    from app.core.chromedriver import bundled_driver
+
+    shipped = bundled_driver()
+    if shipped:
+        return shipped
     _clear_stale_wdm_locks()
     try:
         return ChromeDriverManager().install()

@@ -68,8 +68,8 @@ def main() -> int:
         "--company-name=Rizviz International Impex",
         "--copyright=Copyright (C) Rizviz International Impex. All rights reserved.",
         "--product-name=Scraping Hub",
-        "--file-version=1.0.3.0",
-        "--product-version=1.0.3.0",
+        "--file-version=1.0.4.0",
+        "--product-version=1.0.4.0",
         str(SERVER / "hub_server.py"),
     ]
     # zig builds its own C runtime at link time for the build PC's CPU (AVX2, LZCNT...)

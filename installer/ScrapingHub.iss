@@ -12,7 +12,7 @@
 ; upgrades in place and keeps the database, results and credentials.
 
 #define AppName "Scraping Hub"
-#define AppVersion "1.0.3"
+#define AppVersion "1.0.4"
 #define AppPublisher "Rizviz International Impex"
 #define AppExe "Scraping Hub.exe"
 #ifndef Stage
