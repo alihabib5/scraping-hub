@@ -8,14 +8,19 @@ Run after build_server.py (compiled server), the console's static export
 
     Scraping Hub.exe + Electron files   the window
     server\      compiled API            console\   static console
+    server\chromedriver\   chromedriver.exe + version.txt for today's Chrome Stable
     pgsql\       PostgreSQL (bin, lib, share only)
     tools\       setup-database.ps1, remove-database.ps1, vcredist_x64.exe
 
 Refuses to stage anything that is source code or a credential.
 """
 
+import io
+import json
 import shutil
 import sys
+import urllib.request
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -47,6 +52,27 @@ SKIP_DIRS = {"pgsql/share": {"locale"}}
 KEEP_LOCALES = {"en-US.pak", "en-GB.pak"}
 
 
+# Google's official list of current Chrome versions with their chromedriver downloads.
+CHROME_FOR_TESTING = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
+
+
+def fetch_chromedriver(dest: Path) -> str:
+    """Put the chromedriver for today's Chrome Stable in `dest` (chromedriver.exe +
+    version.txt), so a new PC never downloads one before its first run; the
+    engine uses it while the PC's Chrome has the same major version
+    (server/app/core/chromedriver.py). Returns the version."""
+    with urllib.request.urlopen(CHROME_FOR_TESTING, timeout=60) as r:
+        stable = json.load(r)["channels"]["Stable"]
+    url = next(d["url"] for d in stable["downloads"]["chromedriver"] if d["platform"] == "win64")
+    with urllib.request.urlopen(url, timeout=300) as r:
+        archive = zipfile.ZipFile(io.BytesIO(r.read()))
+    member = next(n for n in archive.namelist() if n.endswith("/chromedriver.exe"))
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / "chromedriver.exe").write_bytes(archive.read(member))
+    (dest / "version.txt").write_text(stable["version"], encoding="utf-8")
+    return stable["version"]
+
+
 def main() -> int:
     missing = [str(p) for p in [*PARTS.values(), *FILES.values()] if not p.exists()]
     if missing:
@@ -69,6 +95,11 @@ def main() -> int:
     for dest, src in FILES.items():
         (STAGE / dest).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, STAGE / dest)
+    try:
+        print(f"chromedriver {fetch_chromedriver(STAGE / 'server' / 'chromedriver')} bundled")
+    except Exception as exc:  # noqa: BLE001 — a setup without it would download on every new PC again
+        print(f"FAIL: could not fetch chromedriver from Chrome for Testing ({exc}); check the internet connection")
+        return 1
 
     files = [p for p in STAGE.rglob("*") if p.is_file()]
     bad = [p for p in files if p.suffix.lower() in FORBIDDEN_SUFFIXES or p.name.startswith(".env")]

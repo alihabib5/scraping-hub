@@ -15,7 +15,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +57,9 @@ def setup_driver(headless: bool, cfg: dict) -> webdriver.Chrome:
     chrome_options.add_argument("--log-level=3")
 
     try:
-        driver_path = ChromeDriverManager().install()
+        from app.core.base_scraper import _resolve_chromedriver
+
+        driver_path = _resolve_chromedriver()  # the installer's bundled driver first, as every scraper
         if not driver_path.endswith(".exe"):
             driver_dir = os.path.dirname(driver_path)
             found = False
